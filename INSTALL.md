@@ -309,6 +309,7 @@ ALLOWED_CORS_ORIGINS=https://trackhub.example.com
 # Database
 DB_CONNECTION_SECURITY=server=db.example.com;user id=postgres;password=SecurePass123;database=TrackHubSecurity;port=5432
 DB_CONNECTION_MANAGER=server=db.example.com;user id=postgres;password=SecurePass123;database=TrackHub;port=5432
+DB_CONNECTION_LOGGING=server=db.example.com;user id=postgres;password=SecurePass123;database=TrackHub;port=5432
 
 # Certificate
 CERTIFICATE_PASSWORD=your-cert-password
@@ -564,6 +565,7 @@ The master template at `config/appsettings.template.json` shows all configurable
 | `${AUTHORITY_URL}` | All except Authority | Identity provider URL |
 | `${DB_CONNECTION_SECURITY}` | Authority, Security | Security database |
 | `${DB_CONNECTION_MANAGER}` | Manager, Geofencing | Manager database |
+| `${DB_CONNECTION_LOGGING}` | All backend services | Centralized logging database |
 | `${CERTIFICATE_PATH}` | All services | Path to OpenIddict certificate |
 | `${CERTIFICATE_PASSWORD}` | All services | Certificate password |
 | `${ENCRYPTION_KEY}` | Security, Manager, Router | Database encryption key |
@@ -591,6 +593,7 @@ Regenerate appsettings when you change:
 | `ALLOWED_CORS_ORIGINS` | CORS allowed origins | `https://trackhub.example.com` |
 | `DB_CONNECTION_SECURITY` | Security DB connection | `server=...;database=TrackHubSecurity;...` |
 | `DB_CONNECTION_MANAGER` | Manager DB connection | `server=...;database=TrackHub;...` |
+| `DB_CONNECTION_LOGGING` | Centralized logging DB connection | `server=...;database=TrackHub;...` |
 | `CERTIFICATE_PASSWORD` | OpenIddict cert password | `your-password` |
 | `ENCRYPTION_KEY` | Database encryption key | `GUID format` |
 | `AUTHORITY_URL` | Identity provider URL | `https://domain.com/Identity` |

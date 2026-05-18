@@ -8,6 +8,7 @@ Docker-based deployment solution for TrackHub application stack.
 - **Flexible Deployment Options**: Full stack, frontend-only, or backend-only configurations
 - **Automated SSL Management**: Certificate generation and Let's Encrypt auto-renewal support
 - **Centralized Configuration**: Template-based configuration management for all services
+- **Centralized Database Logging**: Shared PostgreSQL log sink configuration for APIs and background services
 - **Database Backup & Restore**: Automated backup scripts with versioned restore capabilities
 - **Health Monitoring**: Built-in health checks for all services
 - **Version Management**: Tag, list, and rollback deployments with ease
@@ -200,6 +201,8 @@ psql -h your-db-host -U postgres -d trackhub_manager -f database-structural.sql
 ```
 
 Migration scripts are idempotent and safe to re-run. Always run migrations **before** deploying the updated application services.
+
+Centralized logging requires a `TrackHub` database and the `DB_CONNECTION_LOGGING` environment variable. The Serilog sink auto-creates the `logs` table on first write.
 
 ## Support
 

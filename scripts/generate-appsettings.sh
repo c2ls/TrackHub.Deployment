@@ -113,19 +113,43 @@ declare -A SERVICE_PATHS=(
     ["reporting"]="TrackHub.Reporting/src/Web"
 )
 
+serilog_section() {
+    cat << EOF
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "Microsoft.Hosting.Lifetime": "Information",
+        "System": "Warning"
+      }
+    },
+    "WriteTo": [
+      { "Name": "Console" },
+      {
+        "Name": "PostgreSQL",
+        "Args": {
+          "connectionString": "Name=Logging",
+          "tableName": "logs",
+          "needAutoCreateTable": true,
+          "batchSizeLimit": 50,
+          "period": "00:00:02"
+        }
+      }
+    ]
+  }
+EOF
+}
+
 # Generate appsettings for Authority Server
 generate_authority() {
     cat << EOF
 {
   "ConnectionStrings": {
-    "Security": "${DB_CONNECTION_SECURITY}"
+    "Security": "${DB_CONNECTION_SECURITY}",
+    "Logging": "${DB_CONNECTION_LOGGING}"
   },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
+$(serilog_section),
   "OpenIddict": {
     "LoadCertFromFile": true,
     "Path": "${CERTIFICATE_PATH}",
@@ -144,15 +168,10 @@ generate_security() {
     cat << EOF
 {
   "ConnectionStrings": {
-    "Security": "${DB_CONNECTION_SECURITY}"
+    "Security": "${DB_CONNECTION_SECURITY}",
+    "Logging": "${DB_CONNECTION_LOGGING}"
   },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft": "Warning",
-      "Microsoft.Hosting.Lifetime": "Information"
-    }
-  },
+$(serilog_section),
   "AuthorityServer": {
     "Authority": "${AUTHORITY_URL}",
     "ValidateAudience": true,
@@ -180,15 +199,10 @@ generate_manager() {
     cat << EOF
 {
   "ConnectionStrings": {
-    "DefaultConnection": "${DB_CONNECTION_MANAGER}"
+    "DefaultConnection": "${DB_CONNECTION_MANAGER}",
+    "Logging": "${DB_CONNECTION_LOGGING}"
   },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft": "Warning",
-      "Microsoft.Hosting.Lifetime": "Information"
-    }
-  },
+$(serilog_section),
   "AuthorityServer": {
     "Authority": "${AUTHORITY_URL}",
     "ValidateAudience": true,
@@ -216,13 +230,10 @@ EOF
 generate_router() {
     cat << EOF
 {
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft": "Warning",
-      "Microsoft.Hosting.Lifetime": "Information"
-    }
+  "ConnectionStrings": {
+    "Logging": "${DB_CONNECTION_LOGGING}"
   },
+$(serilog_section),
   "AuthorityServer": {
     "Authority": "${AUTHORITY_URL}",
     "ValidateAudience": true,
@@ -257,15 +268,10 @@ generate_geofencing() {
     cat << EOF
 {
   "ConnectionStrings": {
-    "DefaultConnection": "${DB_CONNECTION_MANAGER}"
+    "DefaultConnection": "${DB_CONNECTION_MANAGER}",
+    "Logging": "${DB_CONNECTION_LOGGING}"
   },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft": "Warning",
-      "Microsoft.Hosting.Lifetime": "Information"
-    }
-  },
+$(serilog_section),
   "AuthorityServer": {
     "Authority": "${AUTHORITY_URL}",
     "ValidateAudience": true,
@@ -291,13 +297,10 @@ EOF
 generate_reporting() {
     cat << EOF
 {
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft": "Warning",
-      "Microsoft.Hosting.Lifetime": "Information"
-    }
+  "ConnectionStrings": {
+    "Logging": "${DB_CONNECTION_LOGGING}"
   },
+$(serilog_section),
   "AuthorityServer": {
     "Authority": "${AUTHORITY_URL}",
     "ValidateAudience": true,

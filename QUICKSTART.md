@@ -52,7 +52,7 @@ git clone https://github.com/shernandezp/TrackHub.Reporting.git
 
 ## Step 3: Prepare the Database
 
-Connect to PostgreSQL and create the two required databases:
+Connect to PostgreSQL and create the required databases:
 
 ```sql
 CREATE DATABASE "TrackHubSecurity";
@@ -82,6 +82,7 @@ nano .env
 | `ALLOWED_CORS_ORIGINS` | `https://trackhub.example.com` |
 | `DB_CONNECTION_SECURITY` | `server=DB_HOST;port=5432;database=TrackHubSecurity;userid=trackhub;password=YourStrongPassword` |
 | `DB_CONNECTION_MANAGER` | `server=DB_HOST;port=5432;database=TrackHub;userid=trackhub;password=YourStrongPassword` |
+| `DB_CONNECTION_LOGGING` | `server=DB_HOST;port=5432;database=TrackHub;userid=trackhub;password=YourStrongPassword` |
 | `CERTIFICATE_PASSWORD` | A strong password for the token-signing certificate |
 | `ENCRYPTION_KEY` | A GUID (generate with `uuidgen` or any GUID tool) |
 | `AUTHORITY_URL` | `https://trackhub.example.com/Identity` |

@@ -75,6 +75,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__Security=${DB_CONNECTION_SECURITY}
+      - ConnectionStrings__Logging=${DB_CONNECTION_LOGGING}
       - AllowedCorsOrigins=${ALLOWED_CORS_ORIGINS}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
@@ -113,6 +114,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__Security=${DB_CONNECTION_SECURITY}
+      - ConnectionStrings__Logging=${DB_CONNECTION_LOGGING}
       - AllowedCorsOrigins=${ALLOWED_CORS_ORIGINS}
       - AuthorityServer__Authority=${AUTHORITY_URL}
       - AuthorityServer__ValidateAudience=true
@@ -156,6 +158,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=${DB_CONNECTION_MANAGER}
+      - ConnectionStrings__Logging=${DB_CONNECTION_LOGGING}
       - AllowedCorsOrigins=${ALLOWED_CORS_ORIGINS}
       - AuthorityServer__Authority=${AUTHORITY_URL}
       - AuthorityServer__ValidateAudience=true
@@ -199,6 +202,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__Logging=${DB_CONNECTION_LOGGING}
       - AllowedCorsOrigins=${ALLOWED_CORS_ORIGINS}
       - AuthorityServer__Authority=${AUTHORITY_URL}
       - AuthorityServer__ValidateAudience=true
@@ -247,6 +251,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=${DB_CONNECTION_MANAGER}
+      - ConnectionStrings__Logging=${DB_CONNECTION_LOGGING}
       - AllowedCorsOrigins=${ALLOWED_CORS_ORIGINS}
       - AuthorityServer__Authority=${AUTHORITY_URL}
       - AuthorityServer__ValidateAudience=true
@@ -288,6 +293,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__Logging=${DB_CONNECTION_LOGGING}
       - AllowedCorsOrigins=${ALLOWED_CORS_ORIGINS}
       - AuthorityServer__Authority=${AUTHORITY_URL}
       - AuthorityServer__ValidateAudience=true
@@ -348,6 +354,7 @@ services:
     restart: unless-stopped
     environment:
       - DOTNET_ENVIRONMENT=Production
+      - ConnectionStrings__Logging=${DB_CONNECTION_LOGGING}
       - AuthorityServer__Authority=${AUTHORITY_URL}
       - AuthorityServer__ClientId=${SYNCWORKER_CLIENT_ID}
       - AuthorityServer__ClientSecret=${SYNCWORKER_CLIENT_SECRET}
