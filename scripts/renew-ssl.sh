@@ -121,7 +121,7 @@ if docker ps | grep -q trackhub-nginx; then
 else
     print_warning "Nginx is not running, attempting to start..."
     cd "$PROJECT_DIR"
-    docker compose up -d nginx
+    docker compose up -d --force-recreate --no-build --no-deps nginx
 fi
 
 log "SSL renewal check complete"

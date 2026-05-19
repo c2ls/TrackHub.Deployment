@@ -146,7 +146,7 @@ rollback_service() {
     cd "$PROJECT_DIR"
     docker compose stop "$service" 2>/dev/null || true
     docker compose rm -f "$service" 2>/dev/null || true
-    docker compose up -d "$service"
+    docker compose up -d --force-recreate --no-build --no-deps "$service"
     
     print_success "Rolled back $service to $tag"
     

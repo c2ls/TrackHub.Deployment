@@ -2,7 +2,8 @@
 # =============================================================================
 # TrackHub Service Update Script
 # =============================================================================
-# Update individual services without affecting others
+# Update individual services without affecting others.
+# Service images are rebuilt with --no-cache and containers are force recreated.
 # Usage: ./update-service.sh <service_name>
 # =============================================================================
 
@@ -83,12 +84,12 @@ update_service() {
     docker compose -f "$compose_file" rm -f "$service" || true
     
     # Rebuild the image
-    print_info "Rebuilding $service image..."
+    print_info "Rebuilding $service image without Docker layer cache..."
     docker compose -f "$compose_file" build --no-cache "$service"
     
     # Start the service
     print_info "Starting $service..."
-    docker compose -f "$compose_file" up -d "$service"
+    docker compose -f "$compose_file" up -d --force-recreate --no-build --no-deps "$service"
     
     # Wait for health check
     print_info "Waiting for service to be healthy..."

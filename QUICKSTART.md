@@ -137,7 +137,7 @@ https://your-domain.com/callback
 ./scripts/deploy.sh full --build
 ```
 
-This will build all containers and start the platform. First run takes several minutes.
+This builds all containers without Docker layer cache and force recreates the running containers from the newly built images. First run takes several minutes.
 
 ---
 
@@ -198,8 +198,8 @@ cd /opt/trackhub/TrackHub.Deployment
 | View all logs | `./scripts/logs.sh` |
 | View one service log | `./scripts/logs.sh manager` |
 | Restart a service | `docker compose restart manager` |
-| Stop everything | `docker compose down` |
-| Start everything | `docker compose up -d` |
+| Stop everything | `docker compose down --remove-orphans` |
+| Deploy/start everything | `./scripts/deploy.sh full --build` |
 | Backup databases | `./scripts/backup-database.sh backup security && ./scripts/backup-database.sh backup manager` |
 | Tag a version | `./scripts/rollback.sh tag v1.0.0` |
 | Rollback | `./scripts/rollback.sh rollback v1.0.0` |

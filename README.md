@@ -100,9 +100,11 @@ chmod +x scripts/*.sh
 
 | Command | Description |
 |---------|-------------|
-| `./scripts/deploy.sh full` | Deploy frontend + all backend services |
-| `./scripts/deploy.sh frontend` | Deploy frontend only |
-| `./scripts/deploy.sh backend` | Deploy backend services only |
+| `./scripts/deploy.sh full` | Deploy frontend + all backend services with no-cache builds and forced container recreation |
+| `./scripts/deploy.sh frontend` | Deploy frontend only with no-cache builds and forced container recreation |
+| `./scripts/deploy.sh backend` | Deploy backend services only with no-cache builds and forced container recreation |
+
+Local deployments intentionally avoid Docker layer cache. The deployment scripts run `docker compose build --no-cache` before starting services, then start containers with `--force-recreate --no-build` so Compose uses the freshly built images and does not perform an implicit cached build during `up`.
 
 ## Service Management
 

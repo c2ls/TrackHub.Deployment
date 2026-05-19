@@ -4,6 +4,7 @@
 # =============================================================================
 # Main deployment script for TrackHub application stack
 # Usage: ./deploy.sh [full|frontend|backend] [--build|--pull]
+# Local builds always use --no-cache and containers are force recreated.
 # =============================================================================
 
 set -e
@@ -56,7 +57,7 @@ usage() {
     echo "  backend   - Deploy only the backend services"
     echo ""
     echo "Options:"
-    echo "  --build     - Build images locally (default)"
+    echo "  --build     - Build images locally without Docker layer cache (default)"
     echo "  --pull      - Pull images from registry"
     echo "  --skip-init - Skip database initialization (for migrations)"
     echo "  --help      - Show this help message"
@@ -168,7 +169,7 @@ deploy() {
     
     # Build or pull images
     if [ "$BUILD_TYPE" == "--build" ]; then
-        print_info "Building images..."
+        print_info "Building images without Docker layer cache..."
         docker compose -f "$COMPOSE_FILE" build --no-cache
     else
         print_info "Pulling images..."
@@ -180,12 +181,12 @@ deploy() {
         print_warning "Skipping database initialization (--skip-init flag set)"
         print_info "Starting services without db-init..."
         # Start all services except db-init
-        docker compose -f "$COMPOSE_FILE" up -d --no-deps nginx frontend authority security manager router geofencing reporting syncworker 2>/dev/null || \
-        docker compose -f "$COMPOSE_FILE" up -d --no-deps nginx frontend authority security manager router geofencing reporting 2>/dev/null || \
-        docker compose -f "$COMPOSE_FILE" up -d
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing reporting syncworker 2>/dev/null || \
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing reporting 2>/dev/null || \
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build
     else
         print_info "Starting all services..."
-        docker compose -f "$COMPOSE_FILE" up -d
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build
     fi
     
     print_success "Deployment complete!"

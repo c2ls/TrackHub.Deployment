@@ -658,6 +658,8 @@ Use `docker-compose.yml`:
 ./scripts/deploy.sh full --build
 ```
 
+The deployment script intentionally builds with `docker compose build --no-cache`, then starts services with `--force-recreate --no-build` so the running containers come from the freshly built images.
+
 ### Scenario 2: Separate Frontend and Backend
 
 #### Backend Server
@@ -745,7 +747,15 @@ The `db-init` container performs the following on first run:
 
 For migrations with existing data, you should **skip the db-init** to avoid potential conflicts with existing OAuth clients.
 
-### Option 1: Deploy Without db-init (Recommended)
+### Option 1: Use --skip-init Flag (Recommended)
+
+```bash
+./scripts/deploy.sh full --build --skip-init
+```
+
+This preserves the normal no-cache build and forced recreation behavior while skipping database initialization.
+
+### Option 2: Deploy Without db-init Manually
 
 Start all services except db-init:
 
@@ -754,14 +764,9 @@ Start all services except db-init:
 cp .env.example .env
 nano .env  # Set DB_CONNECTION_SECURITY and DB_CONNECTION_MANAGER
 
-# Deploy without db-init
-docker compose up -d --no-deps nginx frontend authority security manager router geofencing reporting syncworker
-```
-
-### Option 2: Use --skip-init Flag
-
-```bash
-./scripts/deploy.sh full --build --skip-init
+# Build without Docker layer cache and deploy without db-init
+docker compose build --no-cache
+docker compose up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing reporting syncworker
 ```
 
 ### Option 3: Pre-create the Initialization Flag
@@ -1040,8 +1045,8 @@ crontab -l | grep renew-ssl
 # Stop all services
 docker compose down
 
-# Start all services
-docker compose up -d
+# Deploy/start all services with no-cache builds and forced container recreation
+./scripts/deploy.sh full --build
 
 # Restart specific service
 docker compose restart manager
