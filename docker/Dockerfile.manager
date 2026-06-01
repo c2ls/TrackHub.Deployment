@@ -13,6 +13,7 @@ COPY TrackHub.Manager/global.json .
 COPY TrackHub.Manager/src/Application/Application.csproj src/Application/
 COPY TrackHub.Manager/src/Domain/Domain.csproj src/Domain/
 COPY TrackHub.Manager/src/Infrastructure/ManagerDB/ManagerDB.csproj src/Infrastructure/ManagerDB/
+COPY TrackHub.Manager/src/Infrastructure/RouterApi/RouterApi.csproj src/Infrastructure/RouterApi/
 COPY TrackHub.Manager/src/Infrastructure/SecurityApi/SecurityApi.csproj src/Infrastructure/SecurityApi/
 COPY TrackHub.Manager/src/Web/Web.csproj src/Web/
 

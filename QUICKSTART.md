@@ -208,6 +208,17 @@ cd /opt/trackhub/TrackHub.Deployment
 
 ## Troubleshooting
 
+**-bash: ./scripts/deploy.sh: Permission denied**
+
+This error occurs when the script files don't have execute permissions. Git may not preserve execute permissions when cloning the repository depending on your system configuration.
+
+**Fix:** Grant execute permissions to all scripts:
+```bash
+chmod +x scripts/*.sh
+```
+
+This makes all shell scripts in the `scripts/` directory executable. If you only need to run specific scripts, you can grant permissions individually (e.g., `chmod +x scripts/deploy.sh`).
+
 **Containers won't start?**
 ```bash
 docker compose logs --tail=50
