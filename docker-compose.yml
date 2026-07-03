@@ -20,13 +20,20 @@ services:
       - ./certbot/webroot:/var/www/certbot:ro
       - trackhub-frontend:/usr/share/nginx/html:ro
     depends_on:
-      - frontend
-      - authority
-      - security
-      - manager
-      - router
-      - geofencing
-      - reporting
+      frontend:
+        condition: service_healthy
+      authority:
+        condition: service_started
+      security:
+        condition: service_started
+      manager:
+        condition: service_started
+      router:
+        condition: service_started
+      geofencing:
+        condition: service_started
+      reporting:
+        condition: service_started
     networks:
       - trackhub-network
     healthcheck:
@@ -57,10 +64,17 @@ services:
         - REACT_APP_GEOFENCING_ENDPOINT=${REACT_APP_GEOFENCING_ENDPOINT}
         - REACT_APP_REPORTING_ENDPOINT=${REACT_APP_REPORTING_ENDPOINT}
     container_name: trackhub-frontend
+    restart: unless-stopped
     volumes:
       - trackhub-frontend:/app/build
     networks:
       - trackhub-network
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /app/build/.ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   # =============================================================================
   # AUTHORITY SERVER (OpenIddict Identity Server)

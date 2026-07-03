@@ -3,8 +3,10 @@
 # TrackHub Service Update Script
 # =============================================================================
 # Update individual services without affecting others.
-# Service images are rebuilt with --no-cache and containers are force recreated.
-# Usage: ./update-service.sh <service_name>
+# Service images are rebuilt using Docker layer caching (source changes are
+# detected automatically) and containers are force recreated.
+# Pass --no-cache to force a full rebuild ignoring the layer cache.
+# Usage: ./update-service.sh <service_name> [compose_file] [--no-cache]
 # =============================================================================
 
 set -e
@@ -44,6 +46,7 @@ usage() {
     echo ""
     echo "Optional:"
     echo "  compose_file - Specify compose file (default: docker-compose.yml)"
+    echo "  --no-cache   - Force a full rebuild ignoring the Docker layer cache"
     echo ""
     echo "Examples:"
     echo "  $0 frontend"
@@ -84,8 +87,13 @@ update_service() {
     docker compose -f "$compose_file" rm -f "$service" || true
     
     # Rebuild the image
-    print_info "Rebuilding $service image without Docker layer cache..."
-    docker compose -f "$compose_file" build --no-cache "$service"
+    if [ "$NO_CACHE" = true ]; then
+        print_info "Rebuilding $service image without Docker layer cache (--no-cache)..."
+        docker compose -f "$compose_file" build --no-cache "$service"
+    else
+        print_info "Rebuilding $service image (layer cache detects source changes)..."
+        docker compose -f "$compose_file" build "$service"
+    fi
     
     # Start the service
     print_info "Starting $service..."
@@ -109,8 +117,33 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
-SERVICE_NAME=$1
-COMPOSE_FILE=${2:-"docker-compose.yml"}
+# Defaults
+NO_CACHE=false
+SERVICE_NAME=""
+COMPOSE_FILE="docker-compose.yml"
+
+# Parse arguments: <service_name> [compose_file] [--no-cache] in any order
+for arg in "$@"; do
+    case "$arg" in
+        --no-cache)
+            NO_CACHE=true
+            ;;
+        *.yml|*.yaml)
+            COMPOSE_FILE="$arg"
+            ;;
+        *)
+            if [ -z "$SERVICE_NAME" ]; then
+                SERVICE_NAME="$arg"
+            fi
+            ;;
+    esac
+done
+
+if [ -z "$SERVICE_NAME" ]; then
+    print_error "Service name required"
+    usage
+    exit 1
+fi
 
 # Validate service name
 if ! validate_service "$SERVICE_NAME"; then

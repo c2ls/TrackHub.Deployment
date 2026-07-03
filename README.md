@@ -50,7 +50,9 @@ TrackHub.Deployment/
 │   ├── Dockerfile.geofencing    # Geofencing API
 │   ├── Dockerfile.reporting     # Reporting API
 │   ├── Dockerfile.syncworker    # SyncWorker background service
-│   └── Dockerfile.db-init       # Database initialization
+│   ├── Dockerfile.db-init       # Database initialization
+│   ├── Dockerfile.*.dockerignore # Per-Dockerfile ignore files (exclude bin/obj/node_modules)
+│   └── frontend-entrypoint.sh   # Refreshes frontend assets in the shared volume on start
 ├── nginx/
 │   ├── nginx.conf               # Full stack nginx config
 │   ├── nginx.frontend.conf      # Frontend-only nginx config
@@ -100,11 +102,23 @@ chmod +x scripts/*.sh
 
 | Command | Description |
 |---------|-------------|
-| `./scripts/deploy.sh full` | Deploy frontend + all backend services with no-cache builds and forced container recreation |
-| `./scripts/deploy.sh frontend` | Deploy frontend only with no-cache builds and forced container recreation |
-| `./scripts/deploy.sh backend` | Deploy backend services only with no-cache builds and forced container recreation |
+| `./scripts/deploy.sh full` | Deploy frontend + all backend services (default) |
+| `./scripts/deploy.sh frontend` | Deploy frontend only |
+| `./scripts/deploy.sh backend` | Deploy backend services only |
 
-Local deployments intentionally avoid Docker layer cache. The deployment scripts run `docker compose build --no-cache` before starting services, then start containers with `--force-recreate --no-build` so Compose uses the freshly built images and does not perform an implicit cached build during `up`.
+Builds use the Docker layer cache and reliably detect source changes, so updated
+code is always deployed without needing `--no-cache` or repeated runs. Containers
+are always started with `--force-recreate` so the freshly built images take
+effect, and the frontend refreshes its static assets on every start. Pass
+`--no-cache` only if you ever need to force a full rebuild:
+
+```bash
+./scripts/deploy.sh full --build            # normal, cached, deterministic
+./scripts/deploy.sh full --build --no-cache # optional full rebuild
+```
+
+See [INSTALL.md → Updating Services](INSTALL.md#updating-services) for the
+authoritative update procedure and how deterministic rebuilds work.
 
 ## Service Management
 

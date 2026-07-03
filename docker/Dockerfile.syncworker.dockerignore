@@ -1,0 +1,46 @@
+# =============================================================================
+# Docker build-context ignore (BuildKit per-Dockerfile ignore file)
+# =============================================================================
+# The build context is the parent directory (/opt/trackhub), so these patterns
+# are evaluated relative to that root and apply to every source repository.
+#
+# CRITICAL: Excluding host build artifacts is required for deterministic builds.
+# Without this, host-generated bin/ and obj/ directories are copied into the
+# image and overwrite the container's own restore/compile output. `dotnet
+# publish --no-restore` then treats the stale obj/ as up-to-date and skips
+# recompilation, shipping OLD binaries. Likewise, a host node_modules/ would
+# clobber the container's fresh npm install. Keeping these out of the context
+# also lets Docker layer caching correctly detect real source changes, so
+# `--no-cache` is no longer needed.
+# =============================================================================
+
+# .NET build artifacts
+**/bin/
+**/obj/
+**/out/
+**/publish/
+**/TestResults/
+**/*.user
+
+# Node / React build artifacts and dependencies
+**/node_modules/
+**/build/
+**/dist/
+**/coverage/
+**/.next/
+**/npm-debug.log*
+
+# Version control and IDE metadata
+**/.git/
+**/.gitignore
+**/.vs/
+**/.vscode/
+**/.idea/
+
+# Local environment files and secrets (never bake into images)
+**/.env
+**/.env.*
+
+# OS noise
+**/.DS_Store
+**/Thumbs.db

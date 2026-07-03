@@ -636,6 +636,33 @@ All services use the parent directory (`/opt/trackhub/`) as the Docker build con
 2. **Local NuGet packages** (`TrackHub.Deployment/nuget-packages/`)
 3. **Shared scripts** (`TrackHub.Deployment/scripts/`)
 
+Each Dockerfile has a matching `docker/<Dockerfile>.dockerignore` file that
+excludes host build artifacts (`bin/`, `obj/`, `node_modules/`, `build/`, `.git/`)
+from the context. This is required for correctness, not just speed: without it,
+host-generated `obj/`/`bin/` folders would be copied into the image and overwrite
+the container's own restore/compile output, causing `dotnet publish --no-restore`
+to treat the code as up-to-date and ship **stale binaries**. Keeping these out of
+the context also lets Docker's layer cache detect real source changes, so normal
+cached builds always deploy updated code and `--no-cache` is not required.
+
+### Deterministic Updates (No Stale Artifacts)
+
+Updates are designed to always deploy current code without `--no-cache`, repeated
+runs, or manual cleanup:
+
+- **Backend / worker images** use ordered layers (`.csproj` → `restore` →
+  `COPY src` → `publish`). Because `bin/`/`obj/` are ignored, a source change
+  invalidates the `COPY src` layer and forces a real recompile; unchanged code
+  reuses the cache safely.
+- **Frontend** builds are baked into the image at `/app/dist`. The container
+  entrypoint (`docker/frontend-entrypoint.sh`) copies that build into the shared
+  `trackhub-frontend` volume on **every start**, and nginx only starts once the
+  frontend reports healthy. This fixes the classic named-volume trap where Docker
+  populates a volume only when it is first created (empty), leaving nginx serving
+  the previous build after a rebuild.
+- **`--force-recreate`** guarantees containers are replaced by the freshly built
+  images on every deploy.
+
 ### Local NuGet Packages
 
 TrackHub services depend on the **TrackHubCommon** shared library, distributed as local NuGet packages (not published to nuget.org). These packages are stored in `nuget-packages/` and mounted into Docker builds via a `nuget.config` that configures both the local source and nuget.org.
@@ -658,7 +685,10 @@ Use `docker-compose.yml`:
 ./scripts/deploy.sh full --build
 ```
 
-The deployment script intentionally builds with `docker compose build --no-cache`, then starts services with `--force-recreate --no-build` so the running containers come from the freshly built images.
+The deployment script rebuilds images using the Docker layer cache (source
+changes are detected automatically), then starts services with
+`--force-recreate --no-build` so the running containers come from the freshly
+built images. Add `--no-cache` only if you ever need to force a full rebuild.
 
 ### Scenario 2: Separate Frontend and Backend
 
@@ -753,7 +783,7 @@ For migrations with existing data, you should **skip the db-init** to avoid pote
 ./scripts/deploy.sh full --build --skip-init
 ```
 
-This preserves the normal no-cache build and forced recreation behavior while skipping database initialization.
+This preserves the normal cached build and forced recreation behavior while skipping database initialization.
 
 ### Option 2: Deploy Without db-init Manually
 
@@ -764,8 +794,8 @@ Start all services except db-init:
 cp .env.example .env
 nano .env  # Set DB_CONNECTION_SECURITY and DB_CONNECTION_MANAGER
 
-# Build without Docker layer cache and deploy without db-init
-docker compose build --no-cache
+# Build images (cached; source changes are detected automatically) and deploy without db-init
+docker compose build
 docker compose up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing reporting syncworker
 ```
 
@@ -913,6 +943,13 @@ The services support both methods. For Docker deployments, file-based loading is
 
 ## Updating Services
 
+Updates are deterministic. `deploy.sh` and `update-service.sh` rebuild images
+with the Docker layer cache (source changes are detected automatically) and
+always force-recreate containers, and the frontend refreshes its static assets on
+every start. You do **not** need `--no-cache`, repeated executions, or manual
+volume/repo cleanup. Pass `--no-cache` only to force a full rebuild in
+exceptional cases.
+
 ### Update Single Service
 
 ```bash
@@ -921,17 +958,21 @@ The services support both methods. For Docker deployments, file-based loading is
 
 # Update only the frontend
 ./scripts/update-service.sh frontend
+
+# Force a full rebuild of a service (rarely needed)
+./scripts/update-service.sh manager docker-compose.yml --no-cache
 ```
 
 ### Update All Services
 
 ```bash
-# Pull latest code
-cd /opt/trackhub/TrackHub && git pull
-cd /opt/trackhub/TrackHub.Manager && git pull
-# ... repeat for all repos
+# Pull latest code for every repository
+cd /opt/trackhub
+for repo in TrackHub TrackHub.AuthorityServer TrackHubSecurity TrackHub.Manager TrackHubRouter TrackHub.Geofencing TrackHub.Reporting TrackHub.Deployment; do
+  cd /opt/trackhub/$repo && git pull
+done
 
-# Rebuild and deploy
+# Rebuild and deploy (cached, deterministic)
 cd /opt/trackhub/TrackHub.Deployment
 ./scripts/deploy.sh full --build
 ```
@@ -1045,7 +1086,7 @@ crontab -l | grep renew-ssl
 # Stop all services
 docker compose down
 
-# Deploy/start all services with no-cache builds and forced container recreation
+# Deploy/start all services (cached, deterministic builds + forced recreation)
 ./scripts/deploy.sh full --build
 
 # Restart specific service
@@ -1080,6 +1121,28 @@ docker compose logs --tail=100
 # Check specific service
 docker logs trackhub-authority
 ```
+
+#### A service still runs old code after an update
+
+This should not happen with the current deployment: `.dockerignore` files keep
+stale host `bin/`/`obj/`/`node_modules/` out of the build so layer caching detects
+real source changes, the frontend refreshes its static assets from the image on
+every start, and containers are always force-recreated. If you still suspect
+staleness:
+
+```bash
+# 1. Confirm the latest code was actually pulled
+git -C /opt/trackhub/<repo> log -1 --oneline
+
+# 2. Redeploy (normal cached build already rebuilds changed services)
+./scripts/deploy.sh full --build
+
+# 3. Only if you must bypass the cache entirely (rarely needed)
+./scripts/deploy.sh full --build --no-cache
+```
+
+You should **not** need to delete repositories, remove volumes, or run the deploy
+command multiple times.
 
 #### Database connection issues
 

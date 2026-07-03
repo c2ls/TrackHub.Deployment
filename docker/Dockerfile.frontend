@@ -54,11 +54,13 @@ FROM alpine:latest AS production
 
 WORKDIR /app
 
-# Copy build output
-COPY --from=build /app/build ./build
+# Keep the build output at an immutable, non-volume path inside the image.
+# The entrypoint copies it into the shared "trackhub-frontend" volume (mounted
+# at /app/build) on every start so nginx always serves the current build.
+COPY --from=build /app/build ./dist
 
-# Create a volume mount point for nginx to access
-VOLUME ["/app/build"]
+# Entrypoint that refreshes the volume-backed /app/build on every container start.
+COPY TrackHub.Deployment/docker/frontend-entrypoint.sh /usr/local/bin/frontend-entrypoint.sh
+RUN chmod +x /usr/local/bin/frontend-entrypoint.sh && mkdir -p /app/build
 
-# Keep container running to serve static files via volume
-CMD ["tail", "-f", "/dev/null"]
+ENTRYPOINT ["/usr/local/bin/frontend-entrypoint.sh"]

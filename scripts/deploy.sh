@@ -3,8 +3,9 @@
 # TrackHub Deployment Script
 # =============================================================================
 # Main deployment script for TrackHub application stack
-# Usage: ./deploy.sh [full|frontend|backend] [--build|--pull]
-# Local builds always use --no-cache and containers are force recreated.
+# Usage: ./deploy.sh [full|frontend|backend] [--build|--pull] [--no-cache]
+# Builds use Docker layer caching by default and reliably detect source changes.
+# Containers are always force recreated so updated images are deployed.
 # =============================================================================
 
 set -e
@@ -23,6 +24,7 @@ NC='\033[0m' # No Color
 DEPLOYMENT_TYPE="full"
 BUILD_TYPE="--build"
 SKIP_INIT=false
+NO_CACHE=false
 
 print_header() {
     echo -e "${BLUE}"
@@ -57,8 +59,10 @@ usage() {
     echo "  backend   - Deploy only the backend services"
     echo ""
     echo "Options:"
-    echo "  --build     - Build images locally without Docker layer cache (default)"
+    echo "  --build     - Build images locally using Docker layer cache (default)"
     echo "  --pull      - Pull images from registry"
+    echo "  --no-cache  - Force a full rebuild ignoring the Docker layer cache"
+    echo "                (rarely needed; normal builds already detect source changes)"
     echo "  --skip-init - Skip database initialization (for migrations)"
     echo "  --help      - Show this help message"
     echo ""
@@ -169,8 +173,13 @@ deploy() {
     
     # Build or pull images
     if [ "$BUILD_TYPE" == "--build" ]; then
-        print_info "Building images without Docker layer cache..."
-        docker compose -f "$COMPOSE_FILE" build --no-cache
+        if [ "$NO_CACHE" = true ]; then
+            print_info "Building images without Docker layer cache (--no-cache)..."
+            docker compose -f "$COMPOSE_FILE" build --no-cache
+        else
+            print_info "Building images (layer cache detects source changes)..."
+            docker compose -f "$COMPOSE_FILE" build
+        fi
     else
         print_info "Pulling images..."
         docker compose -f "$COMPOSE_FILE" pull
@@ -216,6 +225,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --build|--pull)
             BUILD_TYPE="$1"
+            shift
+            ;;
+        --no-cache)
+            NO_CACHE=true
             shift
             ;;
         --skip-init)

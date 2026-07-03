@@ -137,7 +137,8 @@ https://your-domain.com/callback
 ./scripts/deploy.sh full --build
 ```
 
-This builds all containers without Docker layer cache and force recreates the running containers from the newly built images. First run takes several minutes.
+This builds all containers and force recreates the running containers from the
+freshly built images. First run takes several minutes.
 
 ---
 
@@ -157,6 +158,11 @@ Open `https://your-domain.com` in your browser. You should see the TrackHub logi
 
 ## Updating TrackHub
 
+Updates are deterministic: `deploy.sh` rebuilds only what changed (source changes
+are detected automatically) and always force-recreates containers, and the
+frontend refreshes its static assets on every start. You do **not** need
+`--no-cache`, repeated runs, or manual volume cleanup.
+
 ### Update Everything
 
 ```bash
@@ -167,7 +173,7 @@ for repo in TrackHub TrackHub.AuthorityServer TrackHubSecurity TrackHub.Manager 
   cd /opt/trackhub/$repo && git pull
 done
 
-# Rebuild and deploy
+# Rebuild and deploy (cached, deterministic)
 cd /opt/trackhub/TrackHub.Deployment
 ./scripts/deploy.sh full --build
 ```
@@ -237,6 +243,21 @@ openssl x509 -in certificates/fullchain.pem -text -noout
 
 **CORS errors in browser?**
 - Check `ALLOWED_CORS_ORIGINS` matches your URL exactly (including `https://`)
+
+**A service still runs old code after an update?**
+
+This should no longer happen: builds detect source changes automatically and
+containers are always force-recreated. If you suspect a problem:
+```bash
+# Confirm the latest code was pulled
+git -C /opt/trackhub/TrackHub.Manager log -1 --oneline
+
+# Rebuild and redeploy (optionally force a full rebuild)
+./scripts/deploy.sh full --build            # normal
+./scripts/deploy.sh full --build --no-cache # only if you must bypass the cache
+```
+You do **not** need to manually delete repos, remove volumes, or run the deploy
+multiple times.
 
 ---
 

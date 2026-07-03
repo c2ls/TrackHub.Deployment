@@ -16,7 +16,8 @@ services:
       - ./certbot/webroot:/var/www/certbot:ro
       - trackhub-frontend:/usr/share/nginx/html:ro
     depends_on:
-      - frontend
+      frontend:
+        condition: service_healthy
     networks:
       - trackhub-network
     healthcheck:
@@ -44,10 +45,17 @@ services:
         - REACT_APP_GEOFENCING_ENDPOINT=${REACT_APP_GEOFENCING_ENDPOINT}
         - REACT_APP_REPORTING_ENDPOINT=${REACT_APP_REPORTING_ENDPOINT}
     container_name: trackhub-frontend
+    restart: unless-stopped
     volumes:
       - trackhub-frontend:/app/build
     networks:
       - trackhub-network
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /app/build/.ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 networks:
   trackhub-network:
