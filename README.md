@@ -49,6 +49,7 @@ TrackHub.Deployment/
 │   ├── Dockerfile.router        # Router API
 │   ├── Dockerfile.geofencing    # Geofencing API
 │   ├── Dockerfile.reporting     # Reporting API
+│   ├── Dockerfile.telemetry     # Telemetry API
 │   ├── Dockerfile.syncworker    # SyncWorker background service
 │   ├── Dockerfile.db-init       # Database initialization
 │   ├── Dockerfile.*.dockerignore # Per-Dockerfile ignore files (exclude bin/obj/node_modules)
@@ -188,6 +189,7 @@ All services share similar `appsettings.json` configurations. Use the centralize
 | Router | `/Router/` | 8080 | Device routing (GraphQL) |
 | Geofencing | `/Geofence/` | 8080 | Geofence management (GraphQL) |
 | Reporting | `/Reporting/` | 8080 | Reports generation (REST) |
+| Telemetry | `/Telemetry/` | 8080 | Position & telemetry store (GraphQL) |
 | SyncWorker | - | - | Background data sync service |
 
 ### Technology Stack

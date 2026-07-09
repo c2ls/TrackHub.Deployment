@@ -1220,13 +1220,22 @@ docker system prune -a
 
 ## Security Considerations
 
+> **⚠️ Development secrets are committed on purpose.** The repositories ship with generic
+> development credentials (OAuth client secrets in `ClientSeeder/clients.json`, sample
+> appsettings, `.env` examples, seeded users) so the multi-service development environment can
+> be stood up without manual secret plumbing. **They are for local/dev use only** — every
+> production deployment must replace them via environment variables and the steps below
+> (regenerate client secrets, strong DB/certificate passwords).
+
 1. **Never commit `.env` files** to version control
 2. **Use strong passwords** for database and certificates
-3. **Keep Docker and OS updated** with security patches
-4. **Use Let's Encrypt** for production SSL certificates
-5. **Configure firewall** to only allow necessary ports
-6. **Regular backups** of configuration and database
-7. **Monitor logs** for suspicious activity
+3. **Rotate the seeded OAuth client secrets** (`syncworker_client`, `router_client`) before
+   exposing any environment beyond local development
+4. **Keep Docker and OS updated** with security patches
+5. **Use Let's Encrypt** for production SSL certificates
+6. **Configure firewall** to only allow necessary ports
+7. **Regular backups** of configuration and database
+8. **Monitor logs** for suspicious activity
 
 ---
 

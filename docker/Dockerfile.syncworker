@@ -55,4 +55,4 @@ COPY --from=build /app/publish .
 ENV ASPNETCORE_ENVIRONMENT=Production
 
 # Entry point
-ENTRYPOINT ["dotnet", "TrackHubRouter.SyncWorker.dll"]
+ENTRYPOINT ["dotnet", "TrackHub.Router.SyncWorker.dll"]

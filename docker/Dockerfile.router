@@ -63,4 +63,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -sf -o /dev/null http://localhost:8080/scalar/v1 || exit 1
 
 # Entry point
-ENTRYPOINT ["dotnet", "TrackHubRouter.Web.dll"]
+ENTRYPOINT ["dotnet", "TrackHub.Router.Web.dll"]

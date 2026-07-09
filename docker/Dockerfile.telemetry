@@ -1,4 +1,4 @@
-# TrackHub Authority Server (OpenIddict)
+# TrackHub Telemetry API (GraphQL)
 # Multi-stage build for .NET 10
 
 # Stage 1: Build
@@ -6,14 +6,14 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy solution and project files
-COPY TrackHub.AuthorityServer/AuthorityServer.sln .
-COPY TrackHub.AuthorityServer/Directory.Build.props .
-COPY TrackHub.AuthorityServer/Directory.Packages.props .
-COPY TrackHub.AuthorityServer/global.json .
-COPY TrackHub.AuthorityServer/src/Application/Application.csproj src/Application/
-COPY TrackHub.AuthorityServer/src/Domain/Domain.csproj src/Domain/
-COPY TrackHub.AuthorityServer/src/Infrastructure/Infrastructure.csproj src/Infrastructure/
-COPY TrackHub.AuthorityServer/src/Web/Web.csproj src/Web/
+COPY TrackHub.Telemetry/TrackHub.Telemetry.slnx .
+COPY TrackHub.Telemetry/Directory.Build.props .
+COPY TrackHub.Telemetry/Directory.Packages.props .
+COPY TrackHub.Telemetry/global.json .
+COPY TrackHub.Telemetry/src/Application/Application.csproj src/Application/
+COPY TrackHub.Telemetry/src/Domain/Domain.csproj src/Domain/
+COPY TrackHub.Telemetry/src/Infrastructure/TelemetryDB/TelemetryDB.csproj src/Infrastructure/TelemetryDB/
+COPY TrackHub.Telemetry/src/Web/Web.csproj src/Web/
 
 # Copy local NuGet packages
 COPY TrackHub.Deployment/nuget-packages/ /nuget-packages/
@@ -22,7 +22,7 @@ COPY TrackHub.Deployment/nuget-packages/ /nuget-packages/
 RUN dotnet restore src/Web/Web.csproj --configfile /nuget-packages/nuget.config
 
 # Copy all source code
-COPY TrackHub.AuthorityServer/src/ src/
+COPY TrackHub.Telemetry/src/ src/
 
 # Build and publish
 RUN dotnet publish src/Web/Web.csproj -c Release -o /app/publish --no-restore
@@ -52,4 +52,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Entry point
-ENTRYPOINT ["dotnet", "TrackHub.AuthorityServer.Web.dll"]
+ENTRYPOINT ["dotnet", "TrackHub.Telemetry.Web.dll"]

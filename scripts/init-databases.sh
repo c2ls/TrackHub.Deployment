@@ -78,7 +78,7 @@ else
     echo "WARNING: No clients.json provided. Using default configuration."
 fi
 
-dotnet ClientSeeder.dll || { echo "ClientSeeder failed"; exit 1; }
+dotnet TrackHub.AuthorityServer.ClientSeeder.dll || { echo "ClientSeeder failed"; exit 1; }
 echo "ClientSeeder completed successfully!"
 
 echo ""
