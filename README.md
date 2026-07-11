@@ -36,7 +36,6 @@ TrackHub.Deployment/
 ├── INSTALL.md                   # Detailed installation guide
 ├── QUICKSTART.md                # Simplified guide for beginners
 ├── README.md                    # This file
-├── database-structural.sql      # Structural domain migration script
 ├── certificates/                # SSL and OpenIddict certificates
 ├── config/
 │   ├── clients.json.example     # OAuth clients configuration
@@ -211,14 +210,23 @@ All services share similar `appsettings.json` configurations. Use the centralize
 
 ## Database Migrations
 
-Before deploying updated services, run the required migration scripts against your PostgreSQL database:
+TrackHub uses EF Core migrations as the source of truth for schema ("DB updates").
+The `db-init` container **seeds data only** — it does not create or migrate the schema —
+so migrations must be applied (new installations **and** updates) with your EF migration
+process, e.g. `dotnet ef database update`, for every stateful service:
 
-```bash
-# Structural domain migration (adds AccountId to transporters and devices tables)
-psql -h your-db-host -U postgres -d trackhub_manager -f database-structural.sql
-```
+| Service | Database | Schema |
+|---------|----------|--------|
+| TrackHubSecurity | `TrackHubSecurity` | `security` (+ OpenIddict) |
+| TrackHub.Manager | `TrackHub` | `app`, `map`, and `telemetry` (Manager owns the telemetry tables) |
+| TrackHub.Geofencing | `TrackHub` | `geofencing` (PostGIS) |
 
-Migration scripts are idempotent and safe to re-run. Always run migrations **before** deploying the updated application services.
+> Telemetry has **no migrations of its own** — its `telemetry`-schema tables are created by
+> the Manager migrations, so `DB_CONNECTION_TELEMETRY` must point at the same `TrackHub`
+> database. PostgreSQL must have **PostGIS** enabled for the Geofencing schema.
+
+Apply migrations **before** deploying the updated services (`db-init` seeds data only and
+assumes the schema already exists). See [INSTALL.md → Upgrading From a Previous Version](INSTALL.md#upgrading-from-a-previous-version).
 
 Centralized logging requires a `TrackHub` database and the `DB_CONNECTION_LOGGING` environment variable. The Serilog sink auto-creates the `logs` table on first write.
 

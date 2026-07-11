@@ -72,6 +72,7 @@ while [[ $# -gt 0 ]]; do
             echo "  manager    - TrackHub.Manager"
             echo "  router     - TrackHubRouter"
             echo "  geofencing - TrackHub.Geofencing"
+            echo "  telemetry  - TrackHub.Telemetry"
             echo "  reporting  - TrackHub.Reporting"
             exit 0
             ;;
@@ -101,7 +102,7 @@ fi
 # Set defaults for variables that might not be set
 CERTIFICATE_PATH=${CERTIFICATE_PATH:-"/app/certificates/certificate.pfx"}
 CERTIFICATE_THUMBPRINT=${CERTIFICATE_THUMBPRINT:-""}
-OPENIDDICT_SCOPES=${OPENIDDICT_SCOPES:-"mobile_scope,web_scope,sec_scope"}
+OPENIDDICT_SCOPES=${OPENIDDICT_SCOPES:-"mobile_scope,driver_mobile_scope,web_scope,service_scope"}
 
 # Service to source directory mapping
 declare -A SERVICE_PATHS=(
@@ -110,6 +111,7 @@ declare -A SERVICE_PATHS=(
     ["manager"]="TrackHub.Manager/src/Web"
     ["router"]="TrackHubRouter/src/Web"
     ["geofencing"]="TrackHub.Geofencing/src/Web"
+    ["telemetry"]="TrackHub.Telemetry/src/Web"
     ["reporting"]="TrackHub.Reporting/src/Web"
 )
 
@@ -176,7 +178,10 @@ $(serilog_section),
     "Authority": "${AUTHORITY_URL}",
     "ValidateAudience": true,
     "ValidateIssuer": true,
-    "ValidateIssuerSigningKey": true
+    "ValidateIssuerSigningKey": true,
+    "ClientId": "${SECURITY_CLIENT_ID}",
+    "ClientSecret": "${SECURITY_CLIENT_SECRET}",
+    "Scope": "service_scope"
   },
   "OpenIddict": {
     "LoadCertFromFile": true,
@@ -212,7 +217,13 @@ $(serilog_section),
   "AppSettings": {
     "GraphQLIdentityService": "${GRAPHQL_IDENTITY_SERVICE}",
     "GraphQLSecurityService": "${GRAPHQL_SECURITY_SERVICE}",
+    "GraphQLRouterService": "${GRAPHQL_ROUTER_SERVICE}",
     "EncryptionKey": "${ENCRYPTION_KEY}"
+  },
+  "DocumentStorage": {
+    "Provider": "${DOCUMENT_STORAGE_PROVIDER:-LocalFileSystem}",
+    "LocalRootPath": "${DOCUMENT_STORAGE_LOCAL_ROOT:-/app/documents}",
+    "RetentionDays": ${DOCUMENT_RETENTION_DAYS:-1825}
   },
   "OpenIddict": {
     "LoadCertFromFile": true,
@@ -238,17 +249,26 @@ $(serilog_section),
     "Authority": "${AUTHORITY_URL}",
     "ValidateAudience": true,
     "ValidateIssuer": true,
-    "ValidateIssuerSigningKey": true
+    "ValidateIssuerSigningKey": true,
+    "ClientId": "${ROUTER_CLIENT_ID}",
+    "ClientSecret": "${ROUTER_CLIENT_SECRET}",
+    "Scope": "service_scope"
   },
   "AppSettings": {
     "GraphQLIdentityService": "${GRAPHQL_IDENTITY_SERVICE}",
     "GraphQLManagerService": "${GRAPHQL_MANAGER_SERVICE}",
+    "GraphQLTelemetryService": "${GRAPHQL_TELEMETRY_SERVICE}",
+    "GraphQLGeofenceService": "${GRAPHQL_GEOFENCE_SERVICE}",
     "EncryptionKey": "${ENCRYPTION_KEY}",
     "Protocols": [
       "CommandTrack",
+      "Flespi",
       "GeoTab",
       "GpsGate",
-      "Traccar"
+      "Navixy",
+      "Samsara",
+      "Traccar",
+      "Wialon"
     ]
   },
   "OpenIddict": {
@@ -310,7 +330,39 @@ $(serilog_section),
   "AppSettings": {
     "GraphQLIdentityService": "${GRAPHQL_IDENTITY_SERVICE}",
     "GraphQLRouterService": "${GRAPHQL_ROUTER_SERVICE}",
-    "GraphQLGeofenceService": "${GRAPHQL_GEOFENCE_SERVICE}"
+    "GraphQLGeofenceService": "${GRAPHQL_GEOFENCE_SERVICE}",
+    "GraphQLManagerService": "${GRAPHQL_MANAGER_SERVICE}",
+    "GraphQLTelemetryService": "${GRAPHQL_TELEMETRY_SERVICE}"
+  },
+  "OpenIddict": {
+    "LoadCertFromFile": true,
+    "Path": "${CERTIFICATE_PATH}",
+    "Password": "${CERTIFICATE_PASSWORD}",
+    "Thumbprint": "${CERTIFICATE_THUMBPRINT}"
+  },
+  "AllowedHosts": "*",
+  "AllowedCorsOrigins": "${ALLOWED_CORS_ORIGINS}"
+}
+EOF
+}
+
+# Generate appsettings for Telemetry API
+generate_telemetry() {
+    cat << EOF
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "${DB_CONNECTION_TELEMETRY}",
+    "Logging": "${DB_CONNECTION_LOGGING}"
+  },
+$(serilog_section),
+  "AuthorityServer": {
+    "Authority": "${AUTHORITY_URL}",
+    "ValidateAudience": true,
+    "ValidateIssuer": true,
+    "ValidateIssuerSigningKey": true
+  },
+  "AppSettings": {
+    "GraphQLIdentityService": "${GRAPHQL_IDENTITY_SERVICE}"
   },
   "OpenIddict": {
     "LoadCertFromFile": true,
@@ -335,6 +387,7 @@ process_service() {
         manager)    content=$(generate_manager) ;;
         router)     content=$(generate_router) ;;
         geofencing) content=$(generate_geofencing) ;;
+        telemetry)  content=$(generate_telemetry) ;;
         reporting)  content=$(generate_reporting) ;;
         *)
             print_error "Unknown service: $service"
@@ -367,7 +420,7 @@ process_service() {
 print_info "TrackHub AppSettings Generator"
 echo ""
 
-SERVICES=("authority" "security" "manager" "router" "geofencing" "reporting")
+SERVICES=("authority" "security" "manager" "router" "geofencing" "telemetry" "reporting")
 
 if [ -n "$SERVICE_FILTER" ]; then
     process_service "$SERVICE_FILTER"

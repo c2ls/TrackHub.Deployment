@@ -34,7 +34,7 @@ print_info() {
 }
 
 # Valid services
-VALID_SERVICES=("frontend" "authority" "security" "manager" "router" "geofencing" "reporting" "syncworker" "nginx")
+VALID_SERVICES=("frontend" "authority" "security" "manager" "router" "geofencing" "telemetry" "reporting" "syncworker" "nginx")
 
 usage() {
     echo "Usage: $0 <service_name> [compose_file]"

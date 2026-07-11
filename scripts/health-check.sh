@@ -94,7 +94,9 @@ check_container "security" || true
 check_container "manager" || true
 check_container "router" || true
 check_container "geofencing" || true
+check_container "telemetry" || true
 check_container "reporting" || true
+check_container "syncworker" || true
 check_container "frontend" || true
 
 echo ""
@@ -106,6 +108,7 @@ check_endpoint "Security" "$PROTOCOL://$DOMAIN/health/security" || true
 check_endpoint "Manager" "$PROTOCOL://$DOMAIN/health/manager" || true
 check_endpoint "Router" "$PROTOCOL://$DOMAIN/health/router" || true
 check_endpoint "Geofencing" "$PROTOCOL://$DOMAIN/health/geofencing" || true
+check_endpoint "Telemetry" "$PROTOCOL://$DOMAIN/health/telemetry" || true
 check_endpoint "Reporting" "$PROTOCOL://$DOMAIN/health/reporting" || true
 
 echo ""
@@ -115,6 +118,7 @@ check_endpoint "Security GraphQL" "$PROTOCOL://$DOMAIN/Security/graphql/" || tru
 check_endpoint "Manager GraphQL" "$PROTOCOL://$DOMAIN/Manager/graphql/" || true
 check_endpoint "Router GraphQL" "$PROTOCOL://$DOMAIN/Router/graphql/" || true
 check_endpoint "Geofence GraphQL" "$PROTOCOL://$DOMAIN/Geofence/graphql/" || true
+check_endpoint "Telemetry GraphQL" "$PROTOCOL://$DOMAIN/Telemetry/graphql/" || true
 
 echo ""
 echo -e "${BLUE}Health check complete.${NC}"

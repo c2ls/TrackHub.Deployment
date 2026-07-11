@@ -64,6 +64,7 @@ services:
         - REACT_APP_ROUTER_ENDPOINT=${REACT_APP_ROUTER_ENDPOINT}
         - REACT_APP_SECURITY_ENDPOINT=${REACT_APP_SECURITY_ENDPOINT}
         - REACT_APP_GEOFENCING_ENDPOINT=${REACT_APP_GEOFENCING_ENDPOINT}
+        - REACT_APP_TELEMETRY_ENDPOINT=${REACT_APP_TELEMETRY_ENDPOINT}
         - REACT_APP_REPORTING_ENDPOINT=${REACT_APP_REPORTING_ENDPOINT}
     container_name: trackhub-frontend
     restart: unless-stopped
@@ -96,7 +97,7 @@ services:
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
-      - OpenIddict__Scopes=${OPENIDDICT_SCOPES:-mobile_scope,web_scope,sec_scope}
+      - OpenIddict__Scopes=${OPENIDDICT_SCOPES:-mobile_scope,driver_mobile_scope,web_scope,service_scope}
     volumes:
       - ./certificates:/app/certificates:ro
     networks:
@@ -136,8 +137,11 @@ services:
       - AuthorityServer__ValidateAudience=true
       - AuthorityServer__ValidateIssuer=true
       - AuthorityServer__ValidateIssuerSigningKey=true
+      # Client credentials for service-to-service calls (Security -> Manager audit/user writes)
+      - AuthorityServer__ClientId=${SECURITY_CLIENT_ID}
+      - AuthorityServer__ClientSecret=${SECURITY_CLIENT_SECRET}
+      - AuthorityServer__Scope=service_scope
       - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
-      - AppSettings__GraphQLTelemetryService=${GRAPHQL_TELEMETRY_SERVICE}
       - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
@@ -183,12 +187,19 @@ services:
       - AuthorityServer__ValidateIssuerSigningKey=true
       - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
       - AppSettings__GraphQLSecurityService=${GRAPHQL_SECURITY_SERVICE}
+      - AppSettings__GraphQLRouterService=${GRAPHQL_ROUTER_SERVICE}
       - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
+      # Document management storage. Default LocalFileSystem persists to the
+      # manager-documents volume; switch to S3/AzureBlob via DocumentStorage__Provider.
+      - DocumentStorage__Provider=${DOCUMENT_STORAGE_PROVIDER:-LocalFileSystem}
+      - DocumentStorage__LocalRootPath=${DOCUMENT_STORAGE_LOCAL_ROOT:-/app/documents}
+      - DocumentStorage__RetentionDays=${DOCUMENT_RETENTION_DAYS:-1825}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - manager-documents:/app/documents
     networks:
       - trackhub-network
     deploy:
@@ -225,14 +236,23 @@ services:
       - AuthorityServer__ValidateAudience=true
       - AuthorityServer__ValidateIssuer=true
       - AuthorityServer__ValidateIssuerSigningKey=true
+      # Client credentials for service-to-service calls (Router -> Telemetry/Manager system writers, ReverseGeocode)
+      - AuthorityServer__ClientId=${ROUTER_CLIENT_ID}
+      - AuthorityServer__ClientSecret=${ROUTER_CLIENT_SECRET}
+      - AuthorityServer__Scope=service_scope
       - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
       - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
       - AppSettings__GraphQLTelemetryService=${GRAPHQL_TELEMETRY_SERVICE}
+      - AppSettings__GraphQLGeofenceService=${GRAPHQL_GEOFENCE_SERVICE}
       - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
       - AppSettings__Protocols__0=CommandTrack
-      - AppSettings__Protocols__1=GeoTab
-      - AppSettings__Protocols__2=GpsGate
-      - AppSettings__Protocols__3=Traccar
+      - AppSettings__Protocols__1=Flespi
+      - AppSettings__Protocols__2=GeoTab
+      - AppSettings__Protocols__3=GpsGate
+      - AppSettings__Protocols__4=Navixy
+      - AppSettings__Protocols__5=Samsara
+      - AppSettings__Protocols__6=Traccar
+      - AppSettings__Protocols__7=Wialon
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
@@ -363,6 +383,8 @@ services:
       - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
       - AppSettings__GraphQLRouterService=${GRAPHQL_ROUTER_SERVICE}
       - AppSettings__GraphQLGeofenceService=${GRAPHQL_GEOFENCE_SERVICE}
+      - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
+      - AppSettings__GraphQLTelemetryService=${GRAPHQL_TELEMETRY_SERVICE}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
@@ -422,6 +444,8 @@ services:
       - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
       - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
       - AppSettings__GraphQLTelemetryService=${GRAPHQL_TELEMETRY_SERVICE}
+      - AppSettings__GraphQLGeofenceService=${GRAPHQL_GEOFENCE_SERVICE}
+      - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
@@ -456,4 +480,6 @@ volumes:
   trackhub-frontend:
     driver: local
   db-init-flag:
+    driver: local
+  manager-documents:
     driver: local

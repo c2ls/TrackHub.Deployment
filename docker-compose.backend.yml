@@ -20,6 +20,7 @@ services:
       - manager
       - router
       - geofencing
+      - telemetry
       - reporting
     networks:
       - trackhub-network
@@ -47,7 +48,7 @@ services:
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
-      - OpenIddict__Scopes=${OPENIDDICT_SCOPES:-mobile_scope,web_scope,sec_scope}
+      - OpenIddict__Scopes=${OPENIDDICT_SCOPES:-mobile_scope,driver_mobile_scope,web_scope,service_scope}
     volumes:
       - ./certificates:/app/certificates:ro
     networks:
@@ -80,6 +81,9 @@ services:
       - AuthorityServer__ValidateAudience=true
       - AuthorityServer__ValidateIssuer=true
       - AuthorityServer__ValidateIssuerSigningKey=true
+      - AuthorityServer__ClientId=${SECURITY_CLIENT_ID}
+      - AuthorityServer__ClientSecret=${SECURITY_CLIENT_SECRET}
+      - AuthorityServer__Scope=service_scope
       - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
       - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
       - OpenIddict__LoadCertFromFile=true
@@ -119,12 +123,17 @@ services:
       - AuthorityServer__ValidateIssuerSigningKey=true
       - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
       - AppSettings__GraphQLSecurityService=${GRAPHQL_SECURITY_SERVICE}
+      - AppSettings__GraphQLRouterService=${GRAPHQL_ROUTER_SERVICE}
       - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
+      - DocumentStorage__Provider=${DOCUMENT_STORAGE_PROVIDER:-LocalFileSystem}
+      - DocumentStorage__LocalRootPath=${DOCUMENT_STORAGE_LOCAL_ROOT:-/app/documents}
+      - DocumentStorage__RetentionDays=${DOCUMENT_RETENTION_DAYS:-1825}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - manager-documents:/app/documents
     networks:
       - trackhub-network
     healthcheck:
@@ -154,14 +163,22 @@ services:
       - AuthorityServer__ValidateAudience=true
       - AuthorityServer__ValidateIssuer=true
       - AuthorityServer__ValidateIssuerSigningKey=true
+      - AuthorityServer__ClientId=${ROUTER_CLIENT_ID}
+      - AuthorityServer__ClientSecret=${ROUTER_CLIENT_SECRET}
+      - AuthorityServer__Scope=service_scope
       - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
       - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
       - AppSettings__GraphQLTelemetryService=${GRAPHQL_TELEMETRY_SERVICE}
+      - AppSettings__GraphQLGeofenceService=${GRAPHQL_GEOFENCE_SERVICE}
       - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
       - AppSettings__Protocols__0=CommandTrack
-      - AppSettings__Protocols__1=GeoTab
-      - AppSettings__Protocols__2=GpsGate
-      - AppSettings__Protocols__3=Traccar
+      - AppSettings__Protocols__1=Flespi
+      - AppSettings__Protocols__2=GeoTab
+      - AppSettings__Protocols__3=GpsGate
+      - AppSettings__Protocols__4=Navixy
+      - AppSettings__Protocols__5=Samsara
+      - AppSettings__Protocols__6=Traccar
+      - AppSettings__Protocols__7=Wialon
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
@@ -307,10 +324,52 @@ services:
     networks:
       - trackhub-network
 
+  # =============================================================================
+  # SYNC WORKER (Background Service)
+  # =============================================================================
+  syncworker:
+    build:
+      context: ..
+      dockerfile: TrackHub.Deployment/docker/Dockerfile.syncworker
+    container_name: trackhub-syncworker
+    restart: unless-stopped
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - ConnectionStrings__Logging=${DB_CONNECTION_LOGGING}
+      - AuthorityServer__Authority=${AUTHORITY_URL}
+      - AuthorityServer__ClientId=${SYNCWORKER_CLIENT_ID}
+      - AuthorityServer__ClientSecret=${SYNCWORKER_CLIENT_SECRET}
+      - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
+      - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
+      - AppSettings__GraphQLTelemetryService=${GRAPHQL_TELEMETRY_SERVICE}
+      - AppSettings__GraphQLGeofenceService=${GRAPHQL_GEOFENCE_SERVICE}
+      - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
+      - OpenIddict__LoadCertFromFile=true
+      - OpenIddict__Path=/app/certificates/certificate.pfx
+      - OpenIddict__Password=${CERTIFICATE_PASSWORD}
+    volumes:
+      - ./certificates:/app/certificates:ro
+    networks:
+      - trackhub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 128M
+    depends_on:
+      authority:
+        condition: service_healthy
+      manager:
+        condition: service_healthy
+
 networks:
   trackhub-network:
     driver: bridge
 
 volumes:
   db-init-flag:
+    driver: local
+  manager-documents:
     driver: local

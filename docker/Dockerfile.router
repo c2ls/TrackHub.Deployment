@@ -22,6 +22,7 @@ COPY TrackHubRouter/src/Infrastructure/ManagerApi/ManagerApi.csproj src/Infrastr
 COPY TrackHubRouter/src/Infrastructure/Navixy/Navixy.csproj src/Infrastructure/Navixy/
 COPY TrackHubRouter/src/Infrastructure/Protack/Protrack.csproj src/Infrastructure/Protack/
 COPY TrackHubRouter/src/Infrastructure/Samsara/Samsara.csproj src/Infrastructure/Samsara/
+COPY TrackHubRouter/src/Infrastructure/TelemetryApi/TelemetryApi.csproj src/Infrastructure/TelemetryApi/
 COPY TrackHubRouter/src/Infrastructure/Traccar/Traccar.csproj src/Infrastructure/Traccar/
 COPY TrackHubRouter/src/Infrastructure/Wialon/Wialon.csproj src/Infrastructure/Wialon/
 COPY TrackHubRouter/src/Web/Web.csproj src/Web/

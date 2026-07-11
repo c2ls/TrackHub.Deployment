@@ -123,10 +123,12 @@ cp config/clients.json.example config/clients.json
 nano config/clients.json
 ```
 
-Update the callback URIs to use your domain:
+Update the `web_client` callback URIs to use your domain (the frontend expects the
+`/authentication/callback` path), and set each service client's secret to match the
+`*_CLIENT_SECRET` values in your `.env`:
 
 ```
-https://your-domain.com/callback
+https://your-domain.com/authentication/callback
 ```
 
 ---
@@ -246,8 +248,8 @@ openssl x509 -in certificates/fullchain.pem -text -noout
 
 **A service still runs old code after an update?**
 
-This should no longer happen: builds detect source changes automatically and
-containers are always force-recreated. If you suspect a problem:
+Builds detect source changes automatically and containers are always
+force-recreated, so this is rare. If you suspect a problem:
 ```bash
 # Confirm the latest code was pulled
 git -C /opt/trackhub/TrackHub.Manager log -1 --oneline

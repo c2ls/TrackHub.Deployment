@@ -17,9 +17,10 @@ A comprehensive guide for deploying TrackHub on Linux servers using Docker.
 9. [Database Setup](#database-setup)
 10. [Migrating to a New Server](#migrating-to-a-new-server-existing-database)
 11. [SSL Certificates](#ssl-certificates)
-12. [Updating Services](#updating-services)
-13. [Monitoring & Maintenance](#monitoring--maintenance)
-14. [Troubleshooting](#troubleshooting)
+12. [Upgrading From a Previous Version](#upgrading-from-a-previous-version)
+13. [Updating Services](#updating-services)
+14. [Monitoring & Maintenance](#monitoring--maintenance)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -35,7 +36,9 @@ TrackHub is a GPS tracking and monitoring platform consisting of:
 | **TrackHub.Manager** | Asset management | .NET 10, GraphQL |
 | **TrackHubRouter** | Device routing | .NET 10, GraphQL |
 | **TrackHub.Geofencing** | Geofence management | .NET 10, GraphQL |
+| **TrackHub.Telemetry** | Position & telemetry store | .NET 10, GraphQL |
 | **TrackHub.Reporting** | Reports generation | .NET 10, REST API |
+| **SyncWorker** | Background data-sync service | .NET 10, Worker (no HTTP) |
 
 ---
 
@@ -57,9 +60,12 @@ TrackHub is a GPS tracking and monitoring platform consisting of:
 │  │   (React)          (:8080)      (:8080)      (:8080)       │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │  ┌────────────────────────────────────────────────────────────┐  │
-│  │     /Router        /Geofence    /Reporting                 │  │
-│  │     Router         Geofencing   Reporting                  │  │
-│  │     (:8080)        (:8080)      (:8080)                    │  │
+│  │  /Router    /Geofence   /Telemetry   /Reporting            │  │
+│  │  Router     Geofencing  Telemetry    Reporting             │  │
+│  │  (:8080)    (:8080)     (:8080)      (:8080)               │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  SyncWorker (background worker — no HTTP endpoint)          │  │
 │  └────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -403,25 +409,44 @@ Edit `config/clients.json`:
 ```json
 {
   "scopes": [
-    {"name": "web_scope", "resource": "web_resource"},
-    {"name": "mobile_scope", "resource": "mobile_resource"},
-    {"name": "sec_scope", "resource": "sec_resource"}
+    {"name": "web_scope", "resource": "trackhub_api"},
+    {"name": "mobile_scope", "resource": "trackhub_api"},
+    {"name": "driver_mobile_scope", "resource": "trackhub_api"},
+    {"name": "service_scope", "resource": "trackhub_api"}
   ],
   "PKCEClients": [
     {
       "clientId": "web_client",
       "uri": "https://trackhub.example.com/authentication/callback",
+      "postLogoutUri": "https://trackhub.example.com/authentication/callback",
       "scope": "web_scope"
+    },
+    {
+      "clientId": "mobile_client",
+      "uri": "trackhubmobile://callback",
+      "postLogoutUri": "trackhubmobile://callback",
+      "scope": "mobile_scope"
+    },
+    {
+      "clientId": "driver_mobile_client",
+      "uri": "trackhubmobiledriver://callback",
+      "postLogoutUri": "trackhubmobiledriver://callback",
+      "scope": "driver_mobile_scope"
     }
   ],
   "serviceClients": [
-    {
-      "clientId": "syncworker_client",
-      "clientSecret": "generate-a-secure-secret-here"
-    }
+    {"clientId": "syncworker_client", "clientSecret": "generate-a-secure-secret-here", "scope": "service_scope"},
+    {"clientId": "router_client",     "clientSecret": "generate-a-secure-secret-here", "scope": "service_scope"},
+    {"clientId": "security_client",   "clientSecret": "generate-a-secure-secret-here", "scope": "service_scope"}
   ]
 }
 ```
+
+> **Important:** The `resource` for every scope must be `trackhub_api` (this is the
+> token audience the APIs validate). Each service client's `clientSecret` must match the
+> `${SYNCWORKER_CLIENT_SECRET}` / `${ROUTER_CLIENT_SECRET}` / `${SECURITY_CLIENT_SECRET}`
+> values in your `.env`, and `OPENIDDICT_SCOPES` in `.env` must list the same scopes
+> (`mobile_scope,driver_mobile_scope,web_scope,service_scope`).
 
 ### Step 8: Deploy
 
@@ -563,13 +588,18 @@ The master template at `config/appsettings.template.json` shows all configurable
 |----------|---------|-------------|
 | `${ALLOWED_CORS_ORIGINS}` | All services | CORS allowed origins |
 | `${AUTHORITY_URL}` | All except Authority | Identity provider URL |
-| `${DB_CONNECTION_SECURITY}` | Authority, Security | Security database |
-| `${DB_CONNECTION_MANAGER}` | Manager, Geofencing | Manager database |
+| `${DB_CONNECTION_SECURITY}` | Authority, Security | Security database (`TrackHubSecurity`) |
+| `${DB_CONNECTION_MANAGER}` | Manager, Geofencing | Manager database (`TrackHub`) |
+| `${DB_CONNECTION_TELEMETRY}` | Telemetry | Telemetry DB — **must be the same `TrackHub` database** (schema `telemetry`) |
 | `${DB_CONNECTION_LOGGING}` | All backend services | Centralized logging database |
 | `${CERTIFICATE_PATH}` | All services | Path to OpenIddict certificate |
 | `${CERTIFICATE_PASSWORD}` | All services | Certificate password |
-| `${ENCRYPTION_KEY}` | Security, Manager, Router | Database encryption key |
-| `${GRAPHQL_*_SERVICE}` | Various | Internal service URLs |
+| `${ENCRYPTION_KEY}` | Security, Manager, Router, SyncWorker | Database encryption key |
+| `${SECURITY_CLIENT_ID}` / `${SECURITY_CLIENT_SECRET}` | Security | `security_client` service credentials (audit forwarding) |
+| `${ROUTER_CLIENT_ID}` / `${ROUTER_CLIENT_SECRET}` | Router | `router_client` service credentials |
+| `${SYNCWORKER_CLIENT_ID}` / `${SYNCWORKER_CLIENT_SECRET}` | SyncWorker | `syncworker_client` service credentials |
+| `${DOCUMENT_STORAGE_PROVIDER}` / `${DOCUMENT_STORAGE_LOCAL_ROOT}` / `${DOCUMENT_RETENTION_DAYS}` | Manager | Document management storage |
+| `${GRAPHQL_*_SERVICE}` | Various | Internal service URLs (includes `GRAPHQL_TELEMETRY_SERVICE`) |
 
 ### When to Regenerate
 
@@ -593,12 +623,20 @@ Regenerate appsettings when you change:
 | `ALLOWED_CORS_ORIGINS` | CORS allowed origins | `https://trackhub.example.com` |
 | `DB_CONNECTION_SECURITY` | Security DB connection | `server=...;database=TrackHubSecurity;...` |
 | `DB_CONNECTION_MANAGER` | Manager DB connection | `server=...;database=TrackHub;...` |
+| `DB_CONNECTION_TELEMETRY` | Telemetry DB connection (same `TrackHub` DB) | `server=...;database=TrackHub;...` |
 | `DB_CONNECTION_LOGGING` | Centralized logging DB connection | `server=...;database=TrackHub;...` |
 | `CERTIFICATE_PASSWORD` | OpenIddict cert password | `your-password` |
 | `ENCRYPTION_KEY` | Database encryption key | `GUID format` |
 | `AUTHORITY_URL` | Identity provider URL | `https://domain.com/Identity` |
-| `SYNCWORKER_CLIENT_ID` | SyncWorker OAuth client ID | `sync_worker_client` |
+| `OPENIDDICT_SCOPES` | Scopes the Authority registers | `mobile_scope,driver_mobile_scope,web_scope,service_scope` |
+| `SYNCWORKER_CLIENT_ID` | SyncWorker OAuth client ID | `syncworker_client` |
 | `SYNCWORKER_CLIENT_SECRET` | SyncWorker OAuth client secret | `your-secret` |
+| `ROUTER_CLIENT_ID` | Router OAuth client ID | `router_client` |
+| `ROUTER_CLIENT_SECRET` | Router OAuth client secret | `your-secret` |
+| `SECURITY_CLIENT_ID` | Security OAuth client ID | `security_client` |
+| `SECURITY_CLIENT_SECRET` | Security OAuth client secret | `your-secret` |
+| `REACT_APP_TELEMETRY_ENDPOINT` | Frontend Telemetry GraphQL URL | `https://domain.com/Telemetry/graphql` |
+| `DOCUMENT_STORAGE_PROVIDER` | Manager document store (`LocalFileSystem`/`S3`/`AzureBlob`) | `LocalFileSystem` |
 
 ### Service Ports (Internal)
 
@@ -609,6 +647,7 @@ Regenerate appsettings when you change:
 | Manager | 8080 |
 | Router | 8080 |
 | Geofencing | 8080 |
+| Telemetry | 8080 |
 | Reporting | 8080 |
 | SyncWorker | - (background) |
 
@@ -622,6 +661,7 @@ Regenerate appsettings when you change:
 | `/Manager/*` | Manager API |
 | `/Router/*` | Router API |
 | `/Geofence/*` | Geofencing API |
+| `/Telemetry/*` | Telemetry API |
 | `/Reporting/*` | Reporting API |
 
 ---
@@ -768,14 +808,26 @@ If you already have a running TrackHub installation and want to migrate the appl
 
 ### What the db-init Container Does
 
-The `db-init` container performs the following on first run:
+The `db-init` container runs on **every deploy** and performs:
 
-1. **ClientSeeder** - Inserts OAuth clients into the database
-2. **Security DBInitializer** - Creates/migrates security database schema
-3. **Manager DBInitializer** - Creates/migrates manager database schema
-4. **Sync User/Account IDs** - Updates foreign keys between databases
+1. **ClientSeeder** - Upserts the OAuth scopes and clients from `config/clients.json` (idempotent)
+2. **Security DBInitializer** - Seeds security resources, roles, and service-client registrations (idempotent)
+3. **Manager DBInitializer** - Seeds master data (report catalog, transporter types, master account/user) (idempotent)
+4. **Sync User/Account IDs** - One-time foreign-key alignment between the two databases, guarded by a flag file (`db-init-flag` volume)
 
-For migrations with existing data, you should **skip the db-init** to avoid potential conflicts with existing OAuth clients.
+Steps 1–3 are idempotent: they upsert or skip anything that already exists, so re-running adds any clients/resources present in `config/clients.json` and the seed data while leaving existing rows untouched. Only step 4 is gated by the flag file.
+
+> **Schema vs. seed:** the DBInitializers **seed data only** — they assume the database
+> schema already exists. EF Core **schema migrations ("DB updates") are applied separately**
+> from `db-init` (see README → *Database Migrations*, applied with your EF migration
+> process, e.g. `dotnet ef database update`). Apply migrations for **all** stateful
+> services — Security, Manager, **Geofencing** (`geofencing` schema) and the `telemetry`
+> schema (owned by Manager migrations) — before or alongside a deploy.
+
+Steps 1–3 are safe to re-run, but **step 4 is a one-time destructive ID sync gated by a
+flag file that lives in a volume**. When you move to a *new* server the flag volume starts
+empty, so step 4 would run again against your already-synced data. Use one of the options
+below to skip it.
 
 ### Option 1: Use --skip-init Flag (Recommended)
 
@@ -796,7 +848,7 @@ nano .env  # Set DB_CONNECTION_SECURITY and DB_CONNECTION_MANAGER
 
 # Build images (cached; source changes are detected automatically) and deploy without db-init
 docker compose build
-docker compose up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing reporting syncworker
+docker compose up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing telemetry reporting syncworker
 ```
 
 ### Option 3: Pre-create the Initialization Flag
@@ -941,14 +993,101 @@ The services support both methods. For Docker deployments, file-based loading is
 
 ---
 
+## Upgrading From a Previous Version
+
+A version upgrade can introduce new services, new configuration keys, new OAuth
+clients, and new database migrations. Because `config/.env` and `config/clients.json`
+are **your local files** (they are not overwritten by `git pull`), you must merge the
+new keys into them yourself. Follow these steps in order.
+
+### 1. Back up first
+
+```bash
+cd /opt/trackhub/TrackHub.Deployment
+./scripts/backup-database.sh backup security
+./scripts/backup-database.sh backup manager
+cp .env .env.bak
+cp config/clients.json config/clients.json.bak
+```
+
+### 2. Pull the new code (all repos)
+
+Use the loop in [Update All Services](#update-all-services) (it includes every
+service repository, e.g. `TrackHub.Telemetry`).
+
+### 3. Reconcile your `.env` with the template
+
+Compare your live `.env` against the updated example and add anything missing:
+
+```bash
+# Show keys present in the template but not in your .env
+comm -23 <(grep -oE '^[A-Z0-9_]+=' .env.example | sort -u) \
+         <(grep -oE '^[A-Z0-9_]+=' .env | sort -u)
+```
+
+Keys that are **new or changed** and required by this release:
+
+| Key | Action |
+|-----|--------|
+| `ROUTER_CLIENT_ID` / `ROUTER_CLIENT_SECRET` | **Add.** Router now performs service-to-service calls; must match the `router_client` in `clients.json`. |
+| `SECURITY_CLIENT_ID` / `SECURITY_CLIENT_SECRET` | **Add.** Security now forwards audit/user writes; must match `security_client`. |
+| `DB_CONNECTION_TELEMETRY` | **Add** (same `TrackHub` database as `DB_CONNECTION_MANAGER`). |
+| `GRAPHQL_TELEMETRY_SERVICE` | **Add** (`http://telemetry:8080/graphql/`). |
+| `REACT_APP_TELEMETRY_ENDPOINT` | **Add** (`https://<domain>/Telemetry/graphql`). |
+| `DOCUMENT_STORAGE_PROVIDER` / `DOCUMENT_STORAGE_LOCAL_ROOT` / `DOCUMENT_RETENTION_DAYS` | **Add** (defaults work; documents persist to the `manager-documents` volume). |
+| `OPENIDDICT_SCOPES` | **Change** to `mobile_scope,driver_mobile_scope,web_scope,service_scope`. |
+| `SYNCWORKER_CLIENT_ID` | **Change** to `syncworker_client`. |
+
+### 4. Reconcile `config/clients.json`
+
+Bring your `clients.json` in line with `config/clients.json.example`:
+
+- **scopes:** add `driver_mobile_scope` and `service_scope` (`resource: trackhub_api`); remove any `sec_scope`.
+- **PKCEClients:** add `mobile_client` and `driver_mobile_client` if you run the mobile/driver apps.
+- **serviceClients:** add `router_client` and `security_client`, and give **every** service client `"scope": "service_scope"`. Each `clientSecret` must equal the matching `*_CLIENT_SECRET` in `.env`.
+
+### 5. Apply database migrations
+
+`db-init` seeds data only — it does **not** create or alter the schema. Apply the EF
+Core migrations for every stateful service against your existing databases **before**
+starting the new images (Security → `TrackHubSecurity`; Manager and Geofencing →
+`TrackHub`; the `telemetry` schema is created by the Manager migrations). Use your
+standard migration process (e.g. `dotnet ef database update` per service, or an EF
+migration bundle). This step is required on every upgrade that adds migrations.
+
+### 6. Rebuild and deploy
+
+```bash
+cd /opt/trackhub/TrackHub.Deployment
+./scripts/deploy.sh full --build
+```
+
+`deploy.sh full` runs `db-init`, which re-seeds idempotently — registering the new
+`router_client`/`security_client` and any new scopes/permissions — and force-recreates
+every container (so the Authority picks up the new `OPENIDDICT_SCOPES`). The one-time
+User/Account ID sync is skipped because its flag already exists.
+
+### 7. Verify
+
+```bash
+./scripts/health-check.sh your-domain.com
+```
+
+> **Note:** the per-service and [zero-downtime](#zero-downtime-updates) update paths below
+> do **not** run `db-init` and do **not** apply migrations. Use them for code-only updates.
+> Any upgrade that adds a migration, a new OAuth client, or a new scope must go through the
+> full `deploy.sh full --build` at least once (after steps 3–5).
+
+---
+
 ## Updating Services
 
-Updates are deterministic. `deploy.sh` and `update-service.sh` rebuild images
-with the Docker layer cache (source changes are detected automatically) and
-always force-recreate containers, and the frontend refreshes its static assets on
-every start. You do **not** need `--no-cache`, repeated executions, or manual
-volume/repo cleanup. Pass `--no-cache` only to force a full rebuild in
-exceptional cases.
+For code-only updates (no new migrations, clients, or config keys), updates are
+deterministic. `deploy.sh` and `update-service.sh` rebuild images with the Docker
+layer cache (source changes are detected automatically) and always force-recreate
+containers, and the frontend refreshes its static assets on every start. You do
+**not** need `--no-cache`, repeated executions, or manual volume/repo cleanup. Pass
+`--no-cache` only to force a full rebuild in exceptional cases.
 
 ### Update Single Service
 
@@ -968,7 +1107,7 @@ exceptional cases.
 ```bash
 # Pull latest code for every repository
 cd /opt/trackhub
-for repo in TrackHub TrackHub.AuthorityServer TrackHubSecurity TrackHub.Manager TrackHubRouter TrackHub.Geofencing TrackHub.Reporting TrackHub.Deployment; do
+for repo in TrackHub TrackHub.AuthorityServer TrackHubSecurity TrackHub.Manager TrackHubRouter TrackHub.Geofencing TrackHub.Telemetry TrackHub.Reporting TrackHub.Deployment; do
   cd /opt/trackhub/$repo && git pull
 done
 
@@ -988,7 +1127,9 @@ For production environments, update services one at a time:
 ./scripts/update-service.sh manager
 ./scripts/update-service.sh router
 ./scripts/update-service.sh geofencing
+./scripts/update-service.sh telemetry
 ./scripts/update-service.sh reporting
+./scripts/update-service.sh syncworker
 
 # Update frontend last
 ./scripts/update-service.sh frontend

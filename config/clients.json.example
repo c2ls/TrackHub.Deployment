@@ -9,7 +9,11 @@
       "resource": "trackhub_api"
     },
     {
-      "name": "sec_scope",
+      "name": "driver_mobile_scope",
+      "resource": "trackhub_api"
+    },
+    {
+      "name": "service_scope",
       "resource": "trackhub_api"
     }
   ],
@@ -17,13 +21,37 @@
     {
       "clientId": "web_client",
       "uri": "https://<<YOUR_DOMAIN>>/authentication/callback",
+      "postLogoutUri": "https://<<YOUR_DOMAIN>>/authentication/callback",
       "scope": "web_scope"
+    },
+    {
+      "clientId": "mobile_client",
+      "uri": "trackhubmobile://callback",
+      "postLogoutUri": "trackhubmobile://callback",
+      "scope": "mobile_scope"
+    },
+    {
+      "clientId": "driver_mobile_client",
+      "uri": "trackhubmobiledriver://callback",
+      "postLogoutUri": "trackhubmobiledriver://callback",
+      "scope": "driver_mobile_scope"
     }
   ],
   "serviceClients": [
     {
       "clientId": "syncworker_client",
-      "clientSecret": "<<GENERATE_A_SECURE_SECRET>>"
+      "clientSecret": "<<GENERATE_A_SECURE_SECRET>>",
+      "scope": "service_scope"
+    },
+    {
+      "clientId": "router_client",
+      "clientSecret": "<<GENERATE_A_SECURE_SECRET>>",
+      "scope": "service_scope"
+    },
+    {
+      "clientId": "security_client",
+      "clientSecret": "<<GENERATE_A_SECURE_SECRET>>",
+      "scope": "service_scope"
     }
   ]
 }

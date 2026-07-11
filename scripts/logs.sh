@@ -21,7 +21,9 @@ usage() {
     echo "  manager    - Manager API"
     echo "  router     - Router API"
     echo "  geofencing - Geofencing API"
+    echo "  telemetry  - Telemetry API"
     echo "  reporting  - Reporting API"
+    echo "  syncworker - SyncWorker background service"
     echo ""
     echo "Options:"
     echo "  -f, --follow  - Follow log output (default)"
@@ -43,7 +45,7 @@ COMPOSE_FILE="docker-compose.yml"
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        all|nginx|frontend|authority|security|manager|router|geofencing|reporting)
+        all|nginx|frontend|authority|security|manager|router|geofencing|telemetry|reporting|syncworker)
             SERVICE="$1"
             shift
             ;;

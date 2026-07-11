@@ -190,8 +190,8 @@ deploy() {
         print_warning "Skipping database initialization (--skip-init flag set)"
         print_info "Starting services without db-init..."
         # Start all services except db-init
-        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing reporting syncworker 2>/dev/null || \
-        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing reporting 2>/dev/null || \
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing telemetry reporting syncworker 2>/dev/null || \
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing telemetry reporting 2>/dev/null || \
         docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build
     else
         print_info "Starting all services..."

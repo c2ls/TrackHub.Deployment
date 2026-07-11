@@ -6,8 +6,8 @@
 # This must be run AFTER the database initialization is complete
 #
 # What it does:
-# 1. Copies the user ID from TrackHubSecurity.security.user to TrackHub.app.user
-# 2. Copies the account ID from TrackHub.app.account to TrackHubSecurity.security.user
+# 1. Copies the user ID from TrackHubSecurity.security.users to TrackHub.app.users
+# 2. Copies the account ID from TrackHub.app.accounts to TrackHubSecurity.security.users
 # =============================================================================
 
 set -e
@@ -112,10 +112,10 @@ echo ""
 # Step 1: Get the user ID from the Security database
 print_info "Step 1: Getting user ID from TrackHubSecurity.security.user..."
 
-SECURITY_USER_ID=$(run_security_sql "SELECT id FROM security.\"user\" LIMIT 1;")
+SECURITY_USER_ID=$(run_security_sql "SELECT id FROM security.users LIMIT 1;")
 
 if [ -z "$SECURITY_USER_ID" ]; then
-    print_error "No user found in security.user table"
+    print_error "No user found in security.users table"
     print_info "Make sure the database has been initialized with seed data"
     exit 1
 fi
@@ -125,10 +125,10 @@ print_success "Found security user ID: $SECURITY_USER_ID"
 # Step 2: Get the current user ID from the Manager database
 print_info "Step 2: Getting current user ID from TrackHub.app.user..."
 
-MANAGER_USER_ID=$(run_manager_sql "SELECT userid FROM app.\"user\" LIMIT 1;")
+MANAGER_USER_ID=$(run_manager_sql "SELECT userid FROM app.users LIMIT 1;")
 
 if [ -z "$MANAGER_USER_ID" ]; then
-    print_error "No user found in app.user table"
+    print_error "No user found in app.users table"
     print_info "Make sure the database has been initialized with seed data"
     exit 1
 fi
@@ -136,12 +136,12 @@ fi
 print_info "Current manager user ID: $MANAGER_USER_ID"
 
 # Step 3: Get the account ID from the Manager database
-print_info "Step 3: Getting account ID from TrackHub.app.account..."
+print_info "Step 3: Getting account ID from TrackHub.app.accounts..."
 
-ACCOUNT_ID=$(run_manager_sql "SELECT accountid FROM app.account LIMIT 1;")
+ACCOUNT_ID=$(run_manager_sql "SELECT accountid FROM app.accounts LIMIT 1;")
 
 if [ -z "$ACCOUNT_ID" ]; then
-    print_error "No account found in app.account table"
+    print_error "No account found in app.accounts table"
     print_info "Make sure the database has been initialized with seed data"
     exit 1
 fi
@@ -170,8 +170,8 @@ echo ""
 # Step 4: Update user ID in Manager database
 print_info "Step 4: Updating user ID in TrackHub.app.user..."
 
-run_manager_sql "UPDATE app.\"user\" SET userid = '$SECURITY_USER_ID' WHERE userid = '$MANAGER_USER_ID';"
-print_success "Updated app.user"
+run_manager_sql "UPDATE app.users SET userid = '$SECURITY_USER_ID' WHERE userid = '$MANAGER_USER_ID';"
+print_success "Updated app.users"
 
 # Step 5: Update user ID in user_settings table
 print_info "Step 5: Updating user ID in TrackHub.app.user_settings..."
@@ -182,8 +182,8 @@ print_success "Updated app.user_settings"
 # Step 6: Update account ID in Security database
 print_info "Step 6: Updating account ID in TrackHubSecurity.security.user..."
 
-run_security_sql "UPDATE security.\"user\" SET accountid = '$ACCOUNT_ID' WHERE id = '$SECURITY_USER_ID';"
-print_success "Updated security.user"
+run_security_sql "UPDATE security.users SET accountid = '$ACCOUNT_ID' WHERE id = '$SECURITY_USER_ID';"
+print_success "Updated security.users"
 
 echo ""
 echo "=============================================="
