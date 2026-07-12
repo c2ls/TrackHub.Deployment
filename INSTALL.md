@@ -39,6 +39,15 @@ TrackHub is a GPS tracking and monitoring platform consisting of:
 | **TrackHub.Telemetry** | Position & telemetry store | .NET 10, GraphQL |
 | **TrackHub.Reporting** | Reports generation | .NET 10, REST API |
 | **SyncWorker** | Background data-sync service | .NET 10, Worker (no HTTP) |
+| **nginx** | Reverse proxy, SSL termination | nginx:alpine |
+| **db-init** | One-shot **seeder** (data only — never schema) | .NET 10, run once per deploy |
+
+**Document management** is part of **TrackHub.Manager**: uploads, versioning, signatures,
+sharing, plus scan/expiration/retention background jobs. Files are stored on the
+`manager-documents` Docker volume by default (`DocumentStorage__Provider=LocalFileSystem`),
+or in S3 / Azure Blob — see [Configuration Reference](#configuration-reference). Uploads are
+capped at **50 MB** by nginx (`client_max_body_size`). This volume is the only stateful data
+outside PostgreSQL: back it up separately.
 
 ---
 
@@ -168,8 +177,12 @@ git clone https://github.com/shernandezp/TrackHubSecurity.git
 git clone https://github.com/shernandezp/TrackHub.Manager.git
 git clone https://github.com/shernandezp/TrackHubRouter.git
 git clone https://github.com/shernandezp/TrackHub.Geofencing.git
+git clone https://github.com/shernandezp/TrackHub.Telemetry.git
 git clone https://github.com/shernandezp/TrackHub.Reporting.git
 ```
+
+> `TrackHubRouter` also provides the **SyncWorker** background service — it has no
+> separate repository.
 
 ### 3. Configure Environment
 
@@ -183,35 +196,69 @@ cp .env.example .env
 nano .env
 ```
 
-### 4. Set Up Certificates
+### 4. Make the Scripts Executable
+
+Git does not always preserve the execute bit, and every step below runs a script:
+
+```bash
+chmod +x scripts/*.sh
+```
+
+### 5. Create the Database Schema (EF migrations)
+
+> ⚠️ **Required on a fresh install.** `db-init` **seeds data only** — it does not create or
+> alter tables (see [Database Setup](#database-setup)). Deploying against empty databases
+> makes the `db-init` container fail.
+
+Apply migrations for the three services that own them (Telemetry has none — its `telemetry`
+schema is created by the Manager migrations). Requires the .NET SDK and `dotnet-ef`:
+
+```bash
+cd /opt/trackhub
+
+ConnectionStrings__Security="$SECURITY_CONN" dotnet ef database update \
+  --project TrackHubSecurity/src/Infrastructure/SecurityDB --startup-project TrackHubSecurity/src/Web
+
+ConnectionStrings__DefaultConnection="$MANAGER_CONN" dotnet ef database update \
+  --project TrackHub.Manager/src/Infrastructure/ManagerDB --startup-project TrackHub.Manager/src/Web
+
+ConnectionStrings__DefaultConnection="$MANAGER_CONN" dotnet ef database update \
+  --project TrackHub.Geofencing/src/Infrastructure/ManagerDB --startup-project TrackHub.Geofencing/src/Web
+
+cd /opt/trackhub/TrackHub.Deployment
+```
+
+Geofencing requires the `postgis` extension in the `TrackHub` database (see
+[Database Setup](#database-setup)).
+
+### 6. Set Up Certificates
 
 ```bash
 # Obtain Let's Encrypt SSL certificate + generate OpenIddict certificate
+# Args: <domain> <letsencrypt-email> [certificate-password]
 # Requires DOMAIN and LETSENCRYPT_EMAIL in .env (or pass as arguments)
 sudo ./scripts/generate-certs.sh your-domain.com admin@your-domain.com
 ```
 
-### 5. Configure OAuth Clients
+### 7. Configure OAuth Clients
 
 ```bash
 # Copy and edit clients.json
 cp config/clients.json.example config/clients.json
 nano config/clients.json
 
-# Update the callback URI with your domain
+# Update the callback URI with your domain, and set each service client's
+# secret to match the matching *_CLIENT_SECRET in .env
 ```
 
-### 6. Deploy
+### 8. Deploy
 
 ```bash
-# Make scripts executable
-chmod +x scripts/*.sh
-
 # Deploy full stack
 ./scripts/deploy.sh full --build
 ```
 
-### 7. Verify Deployment
+### 9. Verify Deployment
 
 ```bash
 # Check health
@@ -312,9 +359,10 @@ Key configurations to update:
 DOMAIN=trackhub.example.com
 ALLOWED_CORS_ORIGINS=https://trackhub.example.com
 
-# Database
+# Database  (note: the user field is "user id=" WITH a space — the scripts parse that exact key)
 DB_CONNECTION_SECURITY=server=db.example.com;user id=postgres;password=SecurePass123;database=TrackHubSecurity;port=5432
 DB_CONNECTION_MANAGER=server=db.example.com;user id=postgres;password=SecurePass123;database=TrackHub;port=5432
+DB_CONNECTION_TELEMETRY=server=db.example.com;user id=postgres;password=SecurePass123;database=TrackHub;port=5432
 DB_CONNECTION_LOGGING=server=db.example.com;user id=postgres;password=SecurePass123;database=TrackHub;port=5432
 
 # Certificate
@@ -323,10 +371,19 @@ CERTIFICATE_PASSWORD=your-cert-password
 # Encryption (generate a new GUID)
 ENCRYPTION_KEY=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
+# Service-to-service OAuth secrets — no defaults; must match config/clients.json
+SYNCWORKER_CLIENT_SECRET=your-syncworker-client-secret
+ROUTER_CLIENT_SECRET=your-router-client-secret
+SECURITY_CLIENT_SECRET=your-security-client-secret
+
 # Update all REACT_APP_ URLs with your domain
 REACT_APP_AUTHORIZATION_ENDPOINT=https://trackhub.example.com/Identity/authorize
 # ... etc
 ```
+
+`DB_CONNECTION_TELEMETRY` and the three `*_CLIENT_SECRET` keys have **no defaults** in
+`docker-compose.yml`. Omitting them yields a Telemetry service with an empty connection
+string and three service clients that cannot authenticate.
 
 ### Step 6: SSL and OpenIddict Certificates
 
@@ -480,44 +537,44 @@ The User and Account IDs between the two databases are automatically synchronize
 
 **What this script does:**
 
-1. Gets the user ID from `TrackHubSecurity.security.user`
-2. Updates `TrackHub.app.user.userid` with the security user ID
+1. Gets the user ID from `TrackHubSecurity.security.users`
+2. Updates `TrackHub.app.users.userid` with the security user ID
 3. Updates `TrackHub.app.user_settings.userid` with the security user ID
-4. Gets the account ID from `TrackHub.app.account`
-5. Updates `TrackHubSecurity.security.user.accountid` with the account ID
+4. Gets the account ID from `TrackHub.app.accounts`
+5. Updates `TrackHubSecurity.security.users.accountid` with the account ID
+
+> The tables are **plural** (`security.users`, `app.users`, `app.accounts`). Older versions
+> of this guide used singular names; those relations do not exist.
 
 **Manual sync (if needed):**
 
-If you prefer to sync manually via SQL:
+If you prefer to sync manually via SQL — run the first two statements against the
+**TrackHubSecurity** database and the rest against **TrackHub** (they are separate
+databases; you cannot cross-query them in one connection):
 
-```bash
-# Connect to PostgreSQL
-psql -h db.example.com -U postgres
-
--- Get user ID from security database
-SELECT id FROM "TrackHubSecurity".security."user";
+```sql
+-- In TrackHubSecurity:
+SELECT id FROM security.users;
 -- Example result: 550e8400-e29b-41d4-a716-446655440000
 
--- Get current user ID from manager database  
-SELECT userid FROM "TrackHub".app."user";
+-- In TrackHub:
+SELECT userid FROM app.users;
 -- Example result: 11111111-1111-1111-1111-111111111111
 
--- Update user ID in manager database
-UPDATE "TrackHub".app."user" 
-SET userid = '550e8400-e29b-41d4-a716-446655440000' 
+UPDATE app.users
+SET userid = '550e8400-e29b-41d4-a716-446655440000'
 WHERE userid = '11111111-1111-1111-1111-111111111111';
 
-UPDATE "TrackHub".app.user_settings 
-SET userid = '550e8400-e29b-41d4-a716-446655440000' 
+UPDATE app.user_settings
+SET userid = '550e8400-e29b-41d4-a716-446655440000'
 WHERE userid = '11111111-1111-1111-1111-111111111111';
 
--- Get account ID from manager database
-SELECT accountid FROM "TrackHub".app.account;
+SELECT accountid FROM app.accounts;
 -- Example result: 660e8400-e29b-41d4-a716-446655440000
 
--- Update account ID in security database
-UPDATE "TrackHubSecurity".security."user" 
-SET accountid = '660e8400-e29b-41d4-a716-446655440000' 
+-- Back in TrackHubSecurity:
+UPDATE security.users
+SET accountid = '660e8400-e29b-41d4-a716-446655440000'
 WHERE id = '550e8400-e29b-41d4-a716-446655440000';
 ```
 
@@ -764,11 +821,25 @@ nano .env
 
 - PostgreSQL 14+
 - Two databases: `TrackHubSecurity` and `TrackHub`
+- The **`postgis`** extension in the `TrackHub` database (required by Geofencing —
+  its migrations declare `HasPostgresExtension("postgis")`)
 - Must be installed and operational before deploying TrackHub
+
+### The Schema Is Created by EF Migrations — Not by `db-init`
+
+This trips people up, so it is worth stating plainly:
+
+| Step | What it does | What it does **not** do |
+|------|--------------|--------------------------|
+| **EF migrations** (`dotnet ef database update`) | Create and alter all tables/schemas | — |
+| **`db-init`** (runs inside `deploy.sh full`) | Seed reference data + OAuth clients (idempotent) | **Does not create or alter any table** |
+
+Both `DBInitializer`s call `SeedAsync()` only. Running `db-init` against an empty database
+fails. Apply migrations **first**, on a fresh install *and* on every upgrade that adds them.
 
 ### Manual Database Creation
 
-If not using the automated initialization:
+Run as a **superuser** — `CREATE EXTENSION` requires it:
 
 ```sql
 -- Create databases
@@ -779,9 +850,39 @@ CREATE DATABASE "TrackHub";
 CREATE USER trackhub WITH PASSWORD 'secure_password';
 GRANT ALL PRIVILEGES ON DATABASE "TrackHubSecurity" TO trackhub;
 GRANT ALL PRIVILEGES ON DATABASE "TrackHub" TO trackhub;
+
+-- PostGIS, in the TrackHub database
+\c TrackHub
+CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
-### Running Initializers Manually
+### Applying Migrations
+
+Three services own migrations. **Telemetry has none** — its `telemetry` schema is created by
+the Manager migrations.
+
+| Service | Migrations project | Startup project | Target DB |
+|---------|--------------------|-----------------|-----------|
+| Security | `TrackHubSecurity/src/Infrastructure/SecurityDB` | `TrackHubSecurity/src/Web` | `TrackHubSecurity` |
+| Manager | `TrackHub.Manager/src/Infrastructure/ManagerDB` | `TrackHub.Manager/src/Web` | `TrackHub` |
+| Geofencing | `TrackHub.Geofencing/src/Infrastructure/ManagerDB` | `TrackHub.Geofencing/src/Web` | `TrackHub` |
+
+```bash
+cd /opt/trackhub
+
+ConnectionStrings__Security="$SECURITY_CONN" dotnet ef database update \
+  --project TrackHubSecurity/src/Infrastructure/SecurityDB --startup-project TrackHubSecurity/src/Web
+
+ConnectionStrings__DefaultConnection="$MANAGER_CONN" dotnet ef database update \
+  --project TrackHub.Manager/src/Infrastructure/ManagerDB --startup-project TrackHub.Manager/src/Web
+
+ConnectionStrings__DefaultConnection="$MANAGER_CONN" dotnet ef database update \
+  --project TrackHub.Geofencing/src/Infrastructure/ManagerDB --startup-project TrackHub.Geofencing/src/Web
+```
+
+### Running Seeders Manually
+
+These **seed only** — they assume the schema already exists (see above).
 
 ```bash
 # Build and run ClientSeeder
@@ -855,24 +956,34 @@ docker compose up -d --force-recreate --no-build --no-deps nginx frontend author
 
 If you want to use the normal deployment process but skip initialization:
 
+The volume is **prefixed with the Compose project name** (derived from the deployment
+directory), so do not guess it — create the stack's volumes first, then look the name up:
+
 ```bash
-# Create the flag volume and file manually
-docker volume create deployment_db-init-flag
-docker run --rm -v deployment_db-init-flag:/flags alpine touch /flags/db-initialized
+# Create the volumes without starting anything, then find the real flag volume name
+docker compose create
+docker volume ls | grep db-init-flag        # e.g. trackhubdeployment_db-init-flag
+
+# Mark initialization as already done
+docker run --rm -v <that-volume-name>:/flags alpine touch /flags/db-initialized
 
 # Now deploy normally - db-init will detect the flag and skip
 ./scripts/deploy.sh full --build
 ```
 
+> Creating a volume named `deployment_db-init-flag` by hand does **not** work — Compose
+> mounts a differently-prefixed volume, so db-init would still run the one-time ID sync.
+
 ### Option 4: Comment Out db-init in docker-compose.yml
 
-Edit `docker-compose.yml` and comment out the db-init service:
+Edit `docker-compose.yml` and comment out the db-init service (note the build context is
+the **workspace root**, one level above the deployment folder):
 
 ```yaml
 # db-init:
 #   build:
-#     context: .
-#     dockerfile: docker/Dockerfile.db-init
+#     context: ..
+#     dockerfile: TrackHub.Deployment/docker/Dockerfile.db-init
 #   ...
 ```
 
@@ -933,7 +1044,7 @@ All services (including the Authority Server) use the `LoadCertFromFile` option 
 
 ```bash
 # Using the provided script
-./scripts/generate-certs.sh your-domain.com 365 your-certificate-password
+./scripts/generate-certs.sh your-domain.com admin@your-domain.com your-certificate-password
 
 # Or manually with OpenSSL
 openssl req -x509 -newkey rsa:4096 \
@@ -996,7 +1107,7 @@ The services support both methods. For Docker deployments, file-based loading is
 ## Upgrading From a Previous Version
 
 A version upgrade can introduce new services, new configuration keys, new OAuth
-clients, and new database migrations. Because `config/.env` and `config/clients.json`
+clients, and new database migrations. Because `.env` and `config/clients.json`
 are **your local files** (they are not overwritten by `git pull`), you must merge the
 new keys into them yourself. Follow these steps in order.
 
@@ -1004,16 +1115,29 @@ new keys into them yourself. Follow these steps in order.
 
 ```bash
 cd /opt/trackhub/TrackHub.Deployment
-./scripts/backup-database.sh backup security
-./scripts/backup-database.sh backup manager
+./scripts/backup-database.sh backup          # dumps BOTH databases into one archive
 cp .env .env.bak
 cp config/clients.json config/clients.json.bak
+
+# Uploaded documents are NOT in the database — back the volume up too
+docker volume ls | grep manager-documents
+docker run --rm -v <volume-name>:/data -v "$PWD/backups:/backup" alpine \
+  tar czf /backup/documents-preupgrade.tar.gz -C /data .
 ```
 
 ### 2. Pull the new code (all repos)
 
-Use the loop in [Update All Services](#update-all-services) (it includes every
-service repository, e.g. `TrackHub.Telemetry`).
+**Telemetry is a new repository** — an instance installed before this release does not
+have it on disk, and the build (`docker/Dockerfile.telemetry`) copies from
+`TrackHub.Telemetry/`. Clone it before anything else, or the deploy fails:
+
+```bash
+cd /opt/trackhub
+[ -d TrackHub.Telemetry ] || git clone https://github.com/shernandezp/TrackHub.Telemetry.git
+```
+
+Then pull the rest using the loop in [Update All Services](#update-all-services).
+No new repo is needed for **SyncWorker** — it builds from `TrackHubRouter`.
 
 ### 3. Reconcile your `.env` with the template
 
@@ -1176,37 +1300,55 @@ curl -k https://your-domain.com/health/security
 
 ### Database Backup & Restore
 
-```bash
-# Backup security database
-./scripts/backup-database.sh backup security
+`backup` takes **no database argument** — it dumps *both* databases into a single
+timestamped `.tar.gz` under `backups/database/`, and `restore` takes that tarball.
 
-# Backup manager database  
-./scripts/backup-database.sh backup manager
+```bash
+# Back up BOTH databases into one archive
+./scripts/backup-database.sh backup
 
 # List all backups
 ./scripts/backup-database.sh list
 
-# Restore from backup
-./scripts/backup-database.sh restore security backups/db/security_20241201_120000.sql
+# Restore from a backup archive
+./scripts/backup-database.sh restore backups/database/trackhub_backup_20260711_120000.tar.gz
 
 # Cleanup old backups (keep last 7 days)
 ./scripts/backup-database.sh cleanup 7
 ```
 
-### Version Management & Rollback
+### Backing Up Uploaded Documents
+
+`backup-database.sh` covers PostgreSQL only. Documents uploaded through the document
+management feature live on the **`manager-documents`** Docker volume and are the only
+stateful data *outside* the database. Back the volume up separately:
 
 ```bash
-# Tag current version before making changes
-./scripts/rollback.sh tag v1.0.0
+# Find the volume (its name is prefixed with the compose project name)
+docker volume ls | grep manager-documents
 
-# List all tagged versions
+# Archive it
+docker run --rm -v <volume-name>:/data -v "$PWD/backups:/backup" alpine \
+  tar czf /backup/documents-$(date +%F).tar.gz -C /data .
+```
+
+### Version Management & Rollback
+
+Both `tag` and `rollback` take a **service name** plus the tag. There is **no `delete`
+command**.
+
+```bash
+# Tag a service's current image before making changes
+./scripts/rollback.sh tag manager v1.0.0
+
+# List tagged versions
 ./scripts/rollback.sh list
 
-# Rollback to a previous version
-./scripts/rollback.sh rollback v1.0.0
+# Show a service's image history
+./scripts/rollback.sh history manager
 
-# Delete a version tag
-./scripts/rollback.sh delete v1.0.0
+# Roll a service back to a previous tag
+./scripts/rollback.sh rollback manager v1.0.0
 ```
 
 ### SSL Certificate Renewal
@@ -1292,7 +1434,8 @@ command multiple times.
 docker exec -it trackhub-authority ping db-server.com
 
 # Check environment variables
-docker exec -it trackhub-authority env | grep DB_
+docker exec -it trackhub-authority env | grep ConnectionStrings
+# (DB_CONNECTION_* exists only on the db-init container; services get ConnectionStrings__*)
 ```
 
 #### Certificate issues
@@ -1346,8 +1489,19 @@ environment:
 
 ### Reset Deployment
 
+> 🛑 **`-v` is destructive and irreversible.** It deletes the Docker volumes, which means:
+> - **`manager-documents`** — *every uploaded document*. This data is **not** in PostgreSQL
+>   and **not** covered by `backup-database.sh`. Archive it first (see
+>   [Backing Up Uploaded Documents](#backing-up-uploaded-documents)).
+> - **`db-init-flag`** — removing it **re-arms the one-time User/Account ID sync**, which
+>   rewrites user and account IDs on the next deploy against your existing databases.
+>
+> For a normal restart use `docker compose down --remove-orphans` (no `-v`).
+
+Only if you genuinely want to discard all local container state:
+
 ```bash
-# Stop and remove everything
+# Stop and remove everything INCLUDING volumes (see warning above)
 docker compose down -v --remove-orphans
 
 # Remove all images
@@ -1370,7 +1524,8 @@ docker system prune -a
 
 1. **Never commit `.env` files** to version control
 2. **Use strong passwords** for database and certificates
-3. **Rotate the seeded OAuth client secrets** (`syncworker_client`, `router_client`) before
+3. **Rotate the seeded OAuth client secrets** (`syncworker_client`, `router_client`,
+   `security_client`) before
    exposing any environment beyond local development
 4. **Keep Docker and OS updated** with security patches
 5. **Use Let's Encrypt** for production SSL certificates

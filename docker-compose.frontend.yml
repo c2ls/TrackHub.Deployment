@@ -1,6 +1,8 @@
 # TrackHub Frontend-Only Deployment
-# Use this for split deployment where frontend runs on a separate server
-# Configure BACKEND_URL in .env to point to the backend server
+# Use this for split deployment where frontend runs on a separate server.
+# This server only serves the static bundle — it does NOT proxy to the backend.
+# Point the frontend at the backend by setting the REACT_APP_* endpoint URLs in .env
+# (they are baked in at build time and called directly by the browser).
 
 services:
   nginx:

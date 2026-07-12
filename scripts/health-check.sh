@@ -51,14 +51,23 @@ check_endpoint() {
 
 check_container() {
     local name=$1
-    
+
     printf "%-20s" "$name:"
-    
-    status=$(docker inspect --format='{{.State.Health.Status}}' "trackhub-$name" 2>/dev/null || echo "not found")
-    
+
+    # Containers with a healthcheck report .State.Health.Status; containers
+    # without one (e.g. syncworker) have no Health object at all, so fall back to
+    # the run state and report "running"/"exited"/... instead of "not found".
+    local format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{if .State.Running}}running{{else}}{{.State.Status}}{{end}}{{end}}'
+    status=$(docker inspect --format="$format" "trackhub-$name" 2>/dev/null || echo "not found")
+    [ -z "$status" ] && status="not found"
+
     case $status in
         "healthy")
             echo -e "${GREEN}✓ Healthy${NC}"
+            return 0
+            ;;
+        "running")
+            echo -e "${GREEN}✓ Running (no healthcheck)${NC}"
             return 0
             ;;
         "unhealthy")
@@ -74,7 +83,7 @@ check_container() {
             return 1
             ;;
         *)
-            echo -e "${YELLOW}⚠ Status: $status${NC}"
+            echo -e "${RED}✗ Not running (status: $status)${NC}"
             return 1
             ;;
     esac

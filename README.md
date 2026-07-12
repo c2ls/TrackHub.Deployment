@@ -13,6 +13,8 @@ Docker-based deployment solution for TrackHub application stack.
 - **Health Monitoring**: Built-in health checks for all services
 - **Version Management**: Tag, list, and rollback deployments with ease
 - **Nginx Reverse Proxy**: Pre-configured routing for all microservices
+- **Document Storage**: Local volume by default, or S3 / Azure Blob for the Manager's
+  document management feature
 
 ---
 
@@ -87,16 +89,23 @@ nano .env
 cp config/clients.json.example config/clients.json
 nano config/clients.json
 
-# 3. Generate certificates
-chmod +x scripts/*.sh
-./scripts/generate-certs.sh your-domain.com admin@your-domain.com
+# 3. Create the database schema — REQUIRED. db-init only SEEDS data; it does not
+#    create tables. See QUICKSTART.md Step 5 for the three `dotnet ef database update`
+#    commands (Security, Manager, Geofencing). Skipping this makes db-init fail.
 
-# 4. Deploy
+# 4. Generate certificates
+chmod +x scripts/*.sh
+sudo ./scripts/generate-certs.sh your-domain.com admin@your-domain.com
+
+# 5. Deploy
 ./scripts/deploy.sh full --build
 
-# 5. Check health
+# 6. Check health
 ./scripts/health-check.sh your-domain.com
 ```
+
+New installs should follow [QUICKSTART.md](QUICKSTART.md) end to end — it covers the
+databases, PostGIS, migrations and OAuth clients in order.
 
 ## Deployment Options
 
@@ -136,17 +145,23 @@ authoritative update procedure and how deterministic rebuilds work.
 # Backup configuration
 ./scripts/backup.sh
 
-# Database backup and restore
-./scripts/backup-database.sh backup security    # Backup security DB
-./scripts/backup-database.sh backup manager     # Backup manager DB
-./scripts/backup-database.sh list               # List backups
-./scripts/backup-database.sh restore security backup.sql  # Restore
+# Database backup and restore (takes NO database argument — dumps both into one archive)
+./scripts/backup-database.sh backup                                    # Back up both DBs
+./scripts/backup-database.sh list                                      # List backups
+./scripts/backup-database.sh restore backups/database/<file>.tar.gz    # Restore
+./scripts/backup-database.sh cleanup 7                                 # Prune old backups
 
-# Version management and rollback
-./scripts/rollback.sh tag v1.0.0               # Tag current version
-./scripts/rollback.sh list                     # List versions
-./scripts/rollback.sh rollback v1.0.0          # Rollback to version
+# Version management and rollback (both take a SERVICE name)
+./scripts/rollback.sh tag manager v1.0.0        # Tag a service's current image
+./scripts/rollback.sh list                      # List versions
+./scripts/rollback.sh history manager           # Show a service's image history
+./scripts/rollback.sh rollback manager v1.0.0   # Roll a service back
 ```
+
+> **Uploaded documents are not in PostgreSQL.** They live on the `manager-documents`
+> volume and are not covered by `backup-database.sh` — back that volume up separately
+> (see [INSTALL.md](INSTALL.md#backing-up-uploaded-documents)), and never run
+> `docker compose down -v`, which deletes them.
 
 ## Configuration Management
 
@@ -189,7 +204,13 @@ All services share similar `appsettings.json` configurations. Use the centralize
 | Geofencing | `/Geofence/` | 8080 | Geofence management (GraphQL) |
 | Reporting | `/Reporting/` | 8080 | Reports generation (REST) |
 | Telemetry | `/Telemetry/` | 8080 | Position & telemetry store (GraphQL) |
-| SyncWorker | - | - | Background data sync service |
+| SyncWorker | - | - | Background data sync service (built from `TrackHubRouter`) |
+| nginx | - | 80/443 | Reverse proxy, SSL termination |
+| db-init | - | - | One-shot **seeder** (data only — never schema) |
+
+**Document management** (part of Manager) stores uploaded files on the `manager-documents`
+volume by default, or in S3 / Azure Blob. Uploads are capped at **50 MB** by nginx. This
+volume is the only stateful data outside PostgreSQL — back it up separately.
 
 ### Technology Stack
 

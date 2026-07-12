@@ -9,8 +9,10 @@ WORKDIR /app
 # Copy package files
 COPY TrackHub/package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install from the lockfile. `npm install` would re-resolve the caret ranges on
+# bleeding-edge deps (vite ^8, typescript ^7) and could pull a breaking minor into a
+# production image even when nothing in the repo changed.
+RUN npm ci
 
 # Copy source code
 COPY TrackHub/ .

@@ -53,6 +53,13 @@ services:
       - ./certificates:/app/certificates:ro
     networks:
       - trackhub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 256M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -60,7 +67,10 @@ services:
       retries: 3
       start_period: 40s
     depends_on:
-      - db-init
+      # db-init is a one-shot seeder with no healthcheck: wait for it to finish
+      # seeding before the authority server boots.
+      db-init:
+        condition: service_completed_successfully
 
   # =============================================================================
   # SECURITY API (GraphQL)
@@ -93,6 +103,13 @@ services:
       - ./certificates:/app/certificates:ro
     networks:
       - trackhub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 256M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -128,6 +145,20 @@ services:
       - DocumentStorage__Provider=${DOCUMENT_STORAGE_PROVIDER:-LocalFileSystem}
       - DocumentStorage__LocalRootPath=${DOCUMENT_STORAGE_LOCAL_ROOT:-/app/documents}
       - DocumentStorage__RetentionDays=${DOCUMENT_RETENTION_DAYS:-1825}
+      # S3 settings (required when DocumentStorage__Provider=S3; ignored otherwise).
+      # BucketName is mandatory for S3; AccessKey/SecretKey may be left empty to use the
+      # default AWS credential chain (IAM role / instance profile).
+      - DocumentStorage__S3__BucketName=${DOCUMENT_S3_BUCKET_NAME:-}
+      - DocumentStorage__S3__Region=${DOCUMENT_S3_REGION:-}
+      - DocumentStorage__S3__ServiceUrl=${DOCUMENT_S3_SERVICE_URL:-}
+      - DocumentStorage__S3__AccessKey=${DOCUMENT_S3_ACCESS_KEY:-}
+      - DocumentStorage__S3__SecretKey=${DOCUMENT_S3_SECRET_KEY:-}
+      - DocumentStorage__S3__ForcePathStyle=${DOCUMENT_S3_FORCE_PATH_STYLE:-}
+      - DocumentStorage__S3__PresignedExpiryMinutes=${DOCUMENT_S3_PRESIGNED_EXPIRY_MINUTES:-}
+      # Azure Blob settings (required when DocumentStorage__Provider=AzureBlob; ignored otherwise).
+      - DocumentStorage__AzureBlob__ContainerName=${DOCUMENT_AZURE_CONTAINER_NAME:-}
+      - DocumentStorage__AzureBlob__ConnectionString=${DOCUMENT_AZURE_CONNECTION_STRING:-}
+      - DocumentStorage__AzureBlob__SasExpiryMinutes=${DOCUMENT_AZURE_SAS_EXPIRY_MINUTES:-}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
@@ -136,6 +167,13 @@ services:
       - manager-documents:/app/documents
     networks:
       - trackhub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 256M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -186,8 +224,16 @@ services:
       - ./certificates:/app/certificates:ro
     networks:
       - trackhub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 256M
+    # Router exposes no /health endpoint; probe the OpenAPI (scalar) endpoint instead.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/scalar/v1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -222,6 +268,13 @@ services:
       - ./certificates:/app/certificates:ro
     networks:
       - trackhub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          memory: 192M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -258,6 +311,13 @@ services:
       - ./certificates:/app/certificates:ro
     networks:
       - trackhub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          memory: 192M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -297,6 +357,13 @@ services:
       - ./certificates:/app/certificates:ro
     networks:
       - trackhub-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          memory: 192M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -339,11 +406,25 @@ services:
       - AuthorityServer__Authority=${AUTHORITY_URL}
       - AuthorityServer__ClientId=${SYNCWORKER_CLIENT_ID}
       - AuthorityServer__ClientSecret=${SYNCWORKER_CLIENT_SECRET}
+      # SyncWorker authenticates as a service (client credentials); GraphQLClientFactory
+      # only attaches a service token when AuthorityServer__IsService is true.
+      - AuthorityServer__IsService=true
+      - AuthorityServer__Scope=service_scope
       - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
       - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
       - AppSettings__GraphQLTelemetryService=${GRAPHQL_TELEMETRY_SERVICE}
       - AppSettings__GraphQLGeofenceService=${GRAPHQL_GEOFENCE_SERVICE}
       - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
+      # Full protocol list (must match the router service); the baked appsettings.json
+      # only lists 4 protocols, so without this Flespi/Navixy/Samsara/Wialon never sync.
+      - AppSettings__Protocols__0=CommandTrack
+      - AppSettings__Protocols__1=Flespi
+      - AppSettings__Protocols__2=GeoTab
+      - AppSettings__Protocols__3=GpsGate
+      - AppSettings__Protocols__4=Navixy
+      - AppSettings__Protocols__5=Samsara
+      - AppSettings__Protocols__6=Traccar
+      - AppSettings__Protocols__7=Wialon
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}

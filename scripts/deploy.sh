@@ -189,10 +189,26 @@ deploy() {
     if [ "$SKIP_INIT" = true ]; then
         print_warning "Skipping database initialization (--skip-init flag set)"
         print_info "Starting services without db-init..."
-        # Start all services except db-init
-        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing telemetry reporting syncworker 2>/dev/null || \
-        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps nginx frontend authority security manager router geofencing telemetry reporting 2>/dev/null || \
-        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build
+
+        # Derive the service list from the compose file in use so that --skip-init
+        # works for every compose file. Never fall back to a command that would
+        # start db-init (it runs the one-time destructive User/Account ID sync).
+        local services=()
+        while IFS= read -r svc; do
+            [ -z "$svc" ] && continue
+            [ "$svc" = "db-init" ] && continue
+            services+=("$svc")
+        done < <(docker compose -f "$COMPOSE_FILE" config --services)
+
+        if [ ${#services[@]} -eq 0 ]; then
+            print_error "Could not determine the service list from $COMPOSE_FILE"
+            print_error "Refusing to start the stack, as that would also run db-init."
+            exit 1
+        fi
+
+        print_info "Services: ${services[*]}"
+        # --no-deps keeps db-init from being pulled in as a dependency
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps "${services[@]}"
     else
         print_info "Starting all services..."
         docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build

@@ -82,8 +82,9 @@ print_info "Requesting certificate from Let's Encrypt..."
 if docker ps --format '{{.Names}}' 2>/dev/null | grep -q trackhub-nginx; then
     print_info "Nginx is running, using webroot method..."
 
-    # Create webroot directory if needed
-    WEBROOT="/var/www/certbot"
+    # Nginx serves the ACME challenge from the ./certbot/webroot bind mount,
+    # so certbot must write the challenge files there (same path renew-ssl.sh uses).
+    WEBROOT="$PROJECT_DIR/certbot/webroot"
     mkdir -p "$WEBROOT"
 
     certbot certonly \

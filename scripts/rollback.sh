@@ -31,8 +31,94 @@ print_info() { echo -e "${BLUE}ℹ $1${NC}"; }
 # Service names
 SERVICES=("frontend" "authority" "security" "manager" "router" "geofencing" "telemetry" "reporting" "syncworker")
 
-# Image prefix
-IMAGE_PREFIX="trackhub"
+# -----------------------------------------------------------------------------
+# Image name resolution
+# -----------------------------------------------------------------------------
+# No compose service declares an "image:" key, so Compose names the images it
+# builds "<project>-<service>". The project name comes from COMPOSE_PROJECT_NAME
+# or, failing that, from the normalized directory name (compose-go lowercases the
+# directory name and drops every character outside [a-z0-9_-] — so
+# "TrackHub.Deployment" becomes "trackhubdeployment").
+# -----------------------------------------------------------------------------
+
+COMPOSE_CONFIG_JSON=""
+COMPOSE_CONFIG_LOADED=false
+
+compose_config_json() {
+    if [ "$COMPOSE_CONFIG_LOADED" = false ]; then
+        COMPOSE_CONFIG_LOADED=true
+        if command -v jq &> /dev/null; then
+            COMPOSE_CONFIG_JSON=$( (cd "$PROJECT_DIR" && docker compose config --format json 2>/dev/null) || true)
+        fi
+    fi
+    printf '%s' "$COMPOSE_CONFIG_JSON"
+}
+
+normalize_project_name() {
+    # Mirror compose-go NormalizeProjectName: lowercase, keep only [a-z0-9_-],
+    # then trim leading "_" / "-".
+    printf '%s' "$1" \
+        | tr '[:upper:]' '[:lower:]' \
+        | tr -cd 'a-z0-9_-' \
+        | sed 's/^[_-]*//'
+}
+
+PROJECT_NAME=""
+
+get_project_name() {
+    if [ -n "$PROJECT_NAME" ]; then
+        printf '%s' "$PROJECT_NAME"
+        return
+    fi
+
+    # 1. Explicit override from the environment
+    if [ -n "${COMPOSE_PROJECT_NAME:-}" ]; then
+        PROJECT_NAME="$COMPOSE_PROJECT_NAME"
+    fi
+
+    # 2. Ask Compose itself (honours .env, COMPOSE_PROJECT_NAME, "name:" in the file)
+    if [ -z "$PROJECT_NAME" ]; then
+        local config
+        config="$(compose_config_json)"
+        if [ -n "$config" ]; then
+            PROJECT_NAME=$(printf '%s' "$config" | jq -r '.name // empty')
+        fi
+    fi
+    if [ -z "$PROJECT_NAME" ]; then
+        PROJECT_NAME=$( (cd "$PROJECT_DIR" && docker compose config 2>/dev/null) \
+            | sed -n 's/^name:[[:space:]]*//p' | head -1 | tr -d "\"' ")
+    fi
+
+    # 3. Fall back to the normalized deployment directory name
+    if [ -z "$PROJECT_NAME" ]; then
+        PROJECT_NAME=$(normalize_project_name "$(basename "$PROJECT_DIR")")
+    fi
+
+    printf '%s' "$PROJECT_NAME"
+}
+
+# Resolve the image repository Compose actually uses for a service:
+# the service's "image:" key when declared, otherwise "<project>-<service>".
+image_name() {
+    local service="$1"
+    local config declared=""
+
+    config="$(compose_config_json)"
+    if [ -n "$config" ]; then
+        declared=$(printf '%s' "$config" | jq -r --arg s "$service" '.services[$s].image // empty')
+    fi
+
+    if [ -n "$declared" ]; then
+        # Strip any tag (but not a registry port, e.g. registry:5000/img)
+        case "${declared##*/}" in
+            *:*) printf '%s' "${declared%:*}" ;;
+            *)   printf '%s' "$declared" ;;
+        esac
+        return
+    fi
+
+    printf '%s-%s' "$(get_project_name)" "$service"
+}
 
 usage() {
     echo "Usage: $0 <command> [options]"
@@ -54,29 +140,40 @@ usage() {
 
 list_images() {
     echo ""
-    echo "Available TrackHub Images:"
+    echo "Available TrackHub Images (compose project: $(get_project_name)):"
     echo "=========================="
-    
+
     for service in "${SERVICES[@]}"; do
+        local image
+        image="$(image_name "$service")"
         echo ""
-        print_info "$service:"
-        docker images "${IMAGE_PREFIX}-${service}" --format "  {{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" 2>/dev/null || echo "  No images found"
+        print_info "$service ($image):"
+        local output
+        output=$(docker images "$image" --format "  {{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" 2>/dev/null || true)
+        if [ -n "$output" ]; then
+            echo "$output"
+        else
+            echo "  No images found"
+        fi
     done
     echo ""
 }
 
 show_history() {
     local service="$1"
-    
+
     if [ -z "$service" ]; then
         print_error "Please specify a service"
         exit 1
     fi
-    
+
+    local image
+    image="$(image_name "$service")"
+
     echo ""
-    echo "Version history for $service:"
+    echo "Version history for $service ($image):"
     echo "=============================="
-    docker images "${IMAGE_PREFIX}-${service}" --format "{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}" | head -10
+    docker images "$image" --format "{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}" | head -10
     echo ""
 }
 
@@ -90,11 +187,13 @@ tag_version() {
         exit 1
     fi
     
-    local image="${IMAGE_PREFIX}-${service}"
-    
+    local image
+    image="$(image_name "$service")"
+
     # Check if image exists
     if ! docker images "$image:latest" --format "{{.ID}}" | grep -q .; then
         print_error "Image $image:latest not found"
+        print_info "Build it first (./scripts/deploy.sh ... --build) or check the compose project name"
         exit 1
     fi
     
@@ -113,9 +212,10 @@ rollback_service() {
         exit 1
     fi
     
-    local image="${IMAGE_PREFIX}-${service}"
+    local image
+    image="$(image_name "$service")"
     local container="trackhub-${service}"
-    
+
     # Check if tagged image exists
     if ! docker images "$image:$tag" --format "{{.ID}}" | grep -q .; then
         print_error "Image $image:$tag not found"
