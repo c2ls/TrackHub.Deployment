@@ -7,6 +7,13 @@
 !.env.frontend.example
 !.env.backend.example
 
+# Let's Encrypt ACME webroot (created by scripts/generate-certs.sh and scripts/renew-ssl.sh,
+# bind-mounted into nginx as /var/www/certbot)
+certbot/
+
+# Generated appsettings.json files (created by scripts/sync-config.sh / generate-appsettings.sh)
+generated/
+
 # Certificates
 certificates/*.pem
 certificates/*.pfx

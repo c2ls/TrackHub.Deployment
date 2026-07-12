@@ -6,9 +6,13 @@
 # Maintains last N versions of each service image for quick rollback
 #
 # Usage:
-#   ./rollback.sh list                    # List available versions
-#   ./rollback.sh <service> [version]     # Rollback service to version
-#   ./rollback.sh all [version]           # Rollback all services
+#   ./rollback.sh list [compose_file]                     # List service images + tags
+#   ./rollback.sh history <service> [compose_file]        # Show version history
+#   ./rollback.sh tag <service> <tag> [compose_file]      # Tag current image before update
+#   ./rollback.sh rollback <service> <tag> [compose_file] # Roll a service back to a tag
+#
+# compose_file defaults to docker-compose.yml (use docker-compose.backend.yml /
+# docker-compose.frontend.yml on split deployments, as with update-service.sh).
 # =============================================================================
 
 set -e
@@ -32,6 +36,32 @@ print_info() { echo -e "${BLUE}ℹ $1${NC}"; }
 SERVICES=("frontend" "authority" "security" "manager" "router" "geofencing" "telemetry" "reporting" "syncworker")
 
 # -----------------------------------------------------------------------------
+# Compose file selection
+# -----------------------------------------------------------------------------
+# Every docker compose invocation below is pinned with -f "$COMPOSE_FILE": without it
+# Compose always targets docker-compose.yml (the full stack) and would happily create
+# containers that do not belong to a backend-only / frontend-only deployment.
+COMPOSE_FILE="docker-compose.yml"
+ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        *.yml|*.yaml) COMPOSE_FILE="$arg" ;;
+        *)            ARGS+=("$arg") ;;
+    esac
+done
+set -- ${ARGS[@]+"${ARGS[@]}"}
+
+# Resolve to an absolute path: the docker compose calls below run from $PROJECT_DIR.
+if [ -f "$PROJECT_DIR/$COMPOSE_FILE" ]; then
+    COMPOSE_FILE="$PROJECT_DIR/$COMPOSE_FILE"
+elif [ -f "$COMPOSE_FILE" ]; then
+    COMPOSE_FILE="$(cd "$(dirname "$COMPOSE_FILE")" && pwd)/$(basename "$COMPOSE_FILE")"
+else
+    print_error "Compose file not found: $COMPOSE_FILE"
+    exit 1
+fi
+
+# -----------------------------------------------------------------------------
 # Image name resolution
 # -----------------------------------------------------------------------------
 # No compose service declares an "image:" key, so Compose names the images it
@@ -48,7 +78,7 @@ compose_config_json() {
     if [ "$COMPOSE_CONFIG_LOADED" = false ]; then
         COMPOSE_CONFIG_LOADED=true
         if command -v jq &> /dev/null; then
-            COMPOSE_CONFIG_JSON=$( (cd "$PROJECT_DIR" && docker compose config --format json 2>/dev/null) || true)
+            COMPOSE_CONFIG_JSON=$( (cd "$PROJECT_DIR" && docker compose -f "$COMPOSE_FILE" config --format json 2>/dev/null) || true)
         fi
     fi
     printf '%s' "$COMPOSE_CONFIG_JSON"
@@ -85,7 +115,7 @@ get_project_name() {
         fi
     fi
     if [ -z "$PROJECT_NAME" ]; then
-        PROJECT_NAME=$( (cd "$PROJECT_DIR" && docker compose config 2>/dev/null) \
+        PROJECT_NAME=$( (cd "$PROJECT_DIR" && docker compose -f "$COMPOSE_FILE" config 2>/dev/null) \
             | sed -n 's/^name:[[:space:]]*//p' | head -1 | tr -d "\"' ")
     fi
 
@@ -121,7 +151,7 @@ image_name() {
 }
 
 usage() {
-    echo "Usage: $0 <command> [options]"
+    echo "Usage: $0 <command> [args] [compose_file]"
     echo ""
     echo "Commands:"
     echo "  list                    List all service images with tags"
@@ -131,11 +161,15 @@ usage() {
     echo ""
     echo "Services: ${SERVICES[*]}"
     echo ""
+    echo "Optional:"
+    echo "  compose_file - Compose file to operate on (default: docker-compose.yml)"
+    echo ""
     echo "Examples:"
     echo "  $0 list"
     echo "  $0 history manager"
     echo "  $0 tag manager v1.2.0"
     echo "  $0 rollback manager v1.1.0"
+    echo "  $0 rollback manager v1.1.0 docker-compose.backend.yml"
 }
 
 list_images() {
@@ -244,15 +278,15 @@ rollback_service() {
     # Restart the container
     print_info "Restarting $container..."
     cd "$PROJECT_DIR"
-    docker compose stop "$service" 2>/dev/null || true
-    docker compose rm -f "$service" 2>/dev/null || true
-    docker compose up -d --force-recreate --no-build --no-deps "$service"
-    
+    docker compose -f "$COMPOSE_FILE" stop "$service" 2>/dev/null || true
+    docker compose -f "$COMPOSE_FILE" rm -f "$service" 2>/dev/null || true
+    docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps "$service"
+
     print_success "Rolled back $service to $tag"
-    
+
     # Show current status
     echo ""
-    docker compose ps "$service"
+    docker compose -f "$COMPOSE_FILE" ps "$service"
 }
 
 # Main

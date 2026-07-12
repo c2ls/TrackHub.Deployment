@@ -24,6 +24,7 @@ usage() {
     echo "  telemetry  - Telemetry API"
     echo "  reporting  - Reporting API"
     echo "  syncworker - SyncWorker background service"
+    echo "  db-init    - One-shot database seeder (check this when a deploy fails)"
     echo ""
     echo "Options:"
     echo "  -f, --follow  - Follow log output (default)"
@@ -45,7 +46,7 @@ COMPOSE_FILE="docker-compose.yml"
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        all|nginx|frontend|authority|security|manager|router|geofencing|telemetry|reporting|syncworker)
+        all|nginx|frontend|authority|security|manager|router|geofencing|telemetry|reporting|syncworker|db-init)
             SERVICE="$1"
             shift
             ;;

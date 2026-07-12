@@ -234,7 +234,12 @@ volume is the only stateful data outside PostgreSQL — back it up separately.
 TrackHub uses EF Core migrations as the source of truth for schema ("DB updates").
 The `db-init` container **seeds data only** — it does not create or migrate the schema —
 so migrations must be applied (new installations **and** updates) with your EF migration
-process, e.g. `dotnet ef database update`, for every stateful service:
+process, e.g. `dotnet ef database update`, for every stateful service.
+
+> The migration host needs the .NET SDK, `dotnet-ef`, **and** the local NuGet feed
+> (`dotnet nuget add source /opt/trackhub/TrackHub.Deployment/nuget-packages -n trackhub-local`) —
+> the `TrackHubCommon.*` packages are not published to nuget.org, so restore fails without it.
+> Full commands: [QUICKSTART.md Step 5](QUICKSTART.md) / [INSTALL.md → Applying Migrations](INSTALL.md#applying-migrations).
 
 | Service | Database | Schema |
 |---------|----------|--------|

@@ -129,7 +129,6 @@ generate_frontend_env() {
     local output_file="${1:-$PROJECT_DIR/../TrackHub/.env}"
     
     cat > "$output_file" << EOF
-GENERATE_SOURCEMAP=false
 REACT_APP_DEFAULT_LAT=${REACT_APP_DEFAULT_LAT:-4.624335}
 REACT_APP_DEFAULT_LNG=${REACT_APP_DEFAULT_LNG:--74.063644}
 REACT_APP_CLIENT_ID=${REACT_APP_CLIENT_ID:-web_client}

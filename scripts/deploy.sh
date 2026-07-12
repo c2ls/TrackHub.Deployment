@@ -194,21 +194,41 @@ deploy() {
         # works for every compose file. Never fall back to a command that would
         # start db-init (it runs the one-time destructive User/Account ID sync).
         local services=()
+        local nginx_services=()
         while IFS= read -r svc; do
             [ -z "$svc" ] && continue
             [ "$svc" = "db-init" ] && continue
-            services+=("$svc")
+            if [ "$svc" = "nginx" ]; then
+                nginx_services+=("$svc")
+            else
+                services+=("$svc")
+            fi
         done < <(docker compose -f "$COMPOSE_FILE" config --services)
 
-        if [ ${#services[@]} -eq 0 ]; then
+        if [ ${#services[@]} -eq 0 ] && [ ${#nginx_services[@]} -eq 0 ]; then
             print_error "Could not determine the service list from $COMPOSE_FILE"
             print_error "Refusing to start the stack, as that would also run db-init."
             exit 1
         fi
 
-        print_info "Services: ${services[*]}"
-        # --no-deps keeps db-init from being pulled in as a dependency
-        docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps "${services[@]}"
+        # --no-deps is mandatory here: "authority" declares
+        #   depends_on: db-init { condition: service_completed_successfully }
+        # so any dependency-resolving "up" would start db-init - exactly what
+        # --skip-init must prevent. The tradeoff is that Compose no longer orders the
+        # listed services either, so we restore the one ordering that actually matters
+        # by hand: nginx is started last. Nginx resolves every upstream host at config
+        # load and dies with "host not found in upstream" when the API containers do
+        # not exist yet. The APIs themselves tolerate any start order (they retry their
+        # dependencies), so two waves are enough.
+        if [ ${#services[@]} -gt 0 ]; then
+            print_info "Services: ${services[*]}"
+            docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps "${services[@]}"
+        fi
+
+        if [ ${#nginx_services[@]} -gt 0 ]; then
+            print_info "Starting nginx last (upstreams must exist first)..."
+            docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build --no-deps "${nginx_services[@]}"
+        fi
     else
         print_info "Starting all services..."
         docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-build

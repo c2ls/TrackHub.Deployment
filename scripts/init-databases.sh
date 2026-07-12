@@ -15,7 +15,7 @@
 #
 # NOTE: EF schema migrations ("DB updates") are applied separately from this
 # script (the seeders assume the schema already exists). See INSTALL.md ->
-# Database Migrations. ClientSeeder creates the OpenIddict tables it needs via
+# "Applying Migrations". ClientSeeder creates the OpenIddict tables it needs via
 # EnsureCreated.
 # =============================================================================
 

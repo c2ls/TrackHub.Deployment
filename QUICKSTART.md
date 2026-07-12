@@ -70,6 +70,18 @@ GRANT ALL PRIVILEGES ON DATABASE "TrackHubSecurity" TO trackhub;
 GRANT ALL PRIVILEGES ON DATABASE "TrackHub" TO trackhub;
 ```
 
+On **PostgreSQL 15+**, `GRANT ... ON DATABASE` is *not* enough to create objects — the role
+also needs rights on the `public` schema. Serilog auto-creates its `logs` table there, so
+without this, logging fails at first write. Run in **both** databases:
+
+```sql
+\c TrackHubSecurity
+GRANT ALL ON SCHEMA public TO trackhub;
+
+\c TrackHub
+GRANT ALL ON SCHEMA public TO trackhub;
+```
+
 Then, connected **to the `TrackHub` database** (still as superuser):
 
 ```sql
@@ -127,8 +139,22 @@ which require additional keys — see [INSTALL.md](INSTALL.md#configuration-refe
 Three services own migrations. Telemetry has none of its own — its `telemetry` schema is
 created by the Manager migrations.
 
-Requires the .NET SDK and `dotnet-ef` (`dotnet tool install --global dotnet-ef`) on the
-machine that can reach PostgreSQL:
+Requires the .NET SDK and `dotnet-ef` on the machine that can reach PostgreSQL:
+
+```bash
+dotnet tool install --global dotnet-ef
+```
+
+**Register the local NuGet feed first.** The services depend on `TrackHubCommon.*`
+packages that are **not on nuget.org** — they ship as `.nupkg` files inside the deployment
+repo. Without this, `dotnet ef` fails to restore:
+
+```bash
+dotnet nuget add source /opt/trackhub/TrackHub.Deployment/nuget-packages \
+  -n trackhub-local
+```
+
+Now apply the migrations:
 
 ```bash
 cd /opt/trackhub

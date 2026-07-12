@@ -126,7 +126,11 @@ outside PostgreSQL: back it up separately.
 | OpenSSL | 3.0+ | Latest stable |
 | .NET SDK | 10.0 | 10.0 (build only) |
 
-> **Note:** .NET SDK is only required if building services outside Docker. Docker builds include the SDK automatically.
+> **Note:** Docker builds include the .NET SDK automatically, but you still need the SDK
+> (plus `dotnet-ef`) on a host that can reach PostgreSQL, because **EF migrations are applied
+> outside Docker** — see [Applying Migrations](#applying-migrations). That host must also
+> register the local NuGet feed shipped in `TrackHub.Deployment/nuget-packages`, since the
+> `TrackHubCommon.*` packages are not published to nuget.org.
 
 ### External Requirements
 
@@ -211,10 +215,28 @@ chmod +x scripts/*.sh
 > makes the `db-init` container fail.
 
 Apply migrations for the three services that own them (Telemetry has none — its `telemetry`
-schema is created by the Manager migrations). Requires the .NET SDK and `dotnet-ef`:
+schema is created by the Manager migrations).
+
+**Prerequisites on the host running the migrations:**
+
+```bash
+# .NET SDK + EF tooling
+dotnet tool install --global dotnet-ef
+
+# The services depend on TrackHubCommon.* packages that are NOT on nuget.org — they ship
+# as .nupkg files in the deployment repo. Without this source, restore (and therefore
+# `dotnet ef`) fails.
+dotnet nuget add source /opt/trackhub/TrackHub.Deployment/nuget-packages -n trackhub-local
+```
+
+Set the connection strings explicitly — **do not rely on the services' `appsettings.json`,
+which contains a localhost dev connection string** and would otherwise be used silently:
 
 ```bash
 cd /opt/trackhub
+
+export SECURITY_CONN="server=db.example.com;port=5432;database=TrackHubSecurity;user id=trackhub;password=YourStrongPassword"
+export MANAGER_CONN="server=db.example.com;port=5432;database=TrackHub;user id=trackhub;password=YourStrongPassword"
 
 ConnectionStrings__Security="$SECURITY_CONN" dotnet ef database update \
   --project TrackHubSecurity/src/Infrastructure/SecurityDB --startup-project TrackHubSecurity/src/Web
@@ -694,6 +716,30 @@ Regenerate appsettings when you change:
 | `SECURITY_CLIENT_SECRET` | Security OAuth client secret | `your-secret` |
 | `REACT_APP_TELEMETRY_ENDPOINT` | Frontend Telemetry GraphQL URL | `https://domain.com/Telemetry/graphql` |
 | `DOCUMENT_STORAGE_PROVIDER` | Manager document store (`LocalFileSystem`/`S3`/`AzureBlob`) | `LocalFileSystem` |
+| `DOCUMENT_STORAGE_LOCAL_ROOT` | Path inside the container (LocalFileSystem only) | `/app/documents` |
+| `DOCUMENT_RETENTION_DAYS` | Byte-retention cleanup horizon | `1825` |
+
+### Document Storage: S3 / Azure Blob
+
+`LocalFileSystem` (the default) needs none of the keys below — documents persist to the
+`manager-documents` volume. If you set `DOCUMENT_STORAGE_PROVIDER=S3` or `AzureBlob`, the
+**required** keys become mandatory: the Manager throws at startup without them.
+
+| Variable | Required? | Description |
+|----------|-----------|-------------|
+| `DOCUMENT_S3_BUCKET_NAME` | **Required for S3** | Target bucket |
+| `DOCUMENT_S3_REGION` | Optional | AWS region (e.g. `us-east-1`) |
+| `DOCUMENT_S3_SERVICE_URL` | Optional | Custom endpoint (MinIO / S3-compatible) |
+| `DOCUMENT_S3_ACCESS_KEY` | Optional | Static key; omit both keys to use the default AWS credential chain (IAM role) |
+| `DOCUMENT_S3_SECRET_KEY` | Optional | Static secret |
+| `DOCUMENT_S3_FORCE_PATH_STYLE` | Optional | Defaults to true when a custom `SERVICE_URL` is set |
+| `DOCUMENT_S3_PRESIGNED_EXPIRY_MINUTES` | Optional | Presigned-URL TTL (default `5`) |
+| `DOCUMENT_AZURE_CONTAINER_NAME` | **Required for AzureBlob** | Blob container |
+| `DOCUMENT_AZURE_CONNECTION_STRING` | **Required for AzureBlob** | Storage account connection string |
+| `DOCUMENT_AZURE_SAS_EXPIRY_MINUTES` | Optional | SAS TTL (default `5`) |
+
+Switching provider does **not** migrate existing documents — move the contents of the
+`manager-documents` volume to the new backend yourself.
 
 ### Service Ports (Internal)
 
@@ -851,8 +897,15 @@ CREATE USER trackhub WITH PASSWORD 'secure_password';
 GRANT ALL PRIVILEGES ON DATABASE "TrackHubSecurity" TO trackhub;
 GRANT ALL PRIVILEGES ON DATABASE "TrackHub" TO trackhub;
 
--- PostGIS, in the TrackHub database
+-- PostgreSQL 15+: database-level grants do NOT allow creating objects. The role also needs
+-- the public schema, where Serilog auto-creates its "logs" table (needAutoCreateTable).
+\c TrackHubSecurity
+GRANT ALL ON SCHEMA public TO trackhub;
+
 \c TrackHub
+GRANT ALL ON SCHEMA public TO trackhub;
+
+-- PostGIS, in the TrackHub database (superuser required)
 CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
@@ -867,8 +920,18 @@ the Manager migrations.
 | Manager | `TrackHub.Manager/src/Infrastructure/ManagerDB` | `TrackHub.Manager/src/Web` | `TrackHub` |
 | Geofencing | `TrackHub.Geofencing/src/Infrastructure/ManagerDB` | `TrackHub.Geofencing/src/Web` | `TrackHub` |
 
+Register the local NuGet feed once (the `TrackHubCommon.*` packages are not on nuget.org),
+then set the connection strings explicitly — the services' `appsettings.json` holds a
+**localhost dev** connection string that EF would otherwise use silently:
+
 ```bash
+dotnet tool install --global dotnet-ef
+dotnet nuget add source /opt/trackhub/TrackHub.Deployment/nuget-packages -n trackhub-local
+
 cd /opt/trackhub
+
+export SECURITY_CONN="server=db.example.com;port=5432;database=TrackHubSecurity;user id=trackhub;password=YourStrongPassword"
+export MANAGER_CONN="server=db.example.com;port=5432;database=TrackHub;user id=trackhub;password=YourStrongPassword"
 
 ConnectionStrings__Security="$SECURITY_CONN" dotnet ef database update \
   --project TrackHubSecurity/src/Infrastructure/SecurityDB --startup-project TrackHubSecurity/src/Web
@@ -1042,11 +1105,13 @@ All services (including the Authority Server) use the `LoadCertFromFile` option 
 
 #### Option A: Generate Self-Signed Certificate (Development/Testing)
 
-```bash
-# Using the provided script
-./scripts/generate-certs.sh your-domain.com admin@your-domain.com your-certificate-password
+> Do **not** use `scripts/generate-certs.sh` for this. That script always obtains a real
+> Let's Encrypt certificate first (it installs certbot, runs `certonly`, and exits with an
+> error if `/etc/letsencrypt/live/<domain>` never appears). It requires a public domain and
+> is a production-only path. For a self-signed token-signing certificate, use OpenSSL
+> directly:
 
-# Or manually with OpenSSL
+```bash
 openssl req -x509 -newkey rsa:4096 \
     -keyout key.pem -out cert.pem \
     -days 365 -nodes \

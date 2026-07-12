@@ -415,8 +415,9 @@ services:
       - AppSettings__GraphQLTelemetryService=${GRAPHQL_TELEMETRY_SERVICE}
       - AppSettings__GraphQLGeofenceService=${GRAPHQL_GEOFENCE_SERVICE}
       - AppSettings__EncryptionKey=${ENCRYPTION_KEY}
-      # Full protocol list (must match the router service); the baked appsettings.json
-      # only lists 4 protocols, so without this Flespi/Navixy/Samsara/Wialon never sync.
+      # Full protocol list — must stay in sync with the router service above.
+      # (Protrack/Mettax exist in the ProtocolType enum but are not wired into the
+      # Router DI assembly, so they must NOT be listed here.)
       - AppSettings__Protocols__0=CommandTrack
       - AppSettings__Protocols__1=Flespi
       - AppSettings__Protocols__2=GeoTab

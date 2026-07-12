@@ -107,8 +107,9 @@ OPENIDDICT_SCOPES=${OPENIDDICT_SCOPES:-"mobile_scope,driver_mobile_scope,web_sco
 # Audience the APIs validate access tokens against (matches every service appsettings.json)
 VALID_AUDIENCE=${VALID_AUDIENCE:-"trackhub_api"}
 
-# Master template (some sections, e.g. syncworker, are sourced from it directly)
-TEMPLATE_FILE="$PROJECT_DIR/config/appsettings.template.json"
+# config/appsettings.template.json documents every configurable value and its environment
+# variable mapping; the generators below are the single source of truth for what is written
+# (keep them in sync with the template when adding a setting).
 
 # Service to source directory mapping
 declare -A SERVICE_PATHS=(
@@ -250,6 +251,13 @@ EOF
 }
 
 # Generate appsettings for Manager API
+# DocumentStorage: Provider = LocalFileSystem (default) | S3 | AzureBlob.
+# S3 REQUIRES DOCUMENT_S3_BUCKET_NAME and AzureBlob REQUIRES DOCUMENT_AZURE_CONTAINER_NAME
+# + DOCUMENT_AZURE_CONNECTION_STRING, otherwise TrackHub.Manager throws at startup.
+# Every value is emitted as a JSON string (as in config/appsettings.template.json): the
+# .NET configuration binder converts strings to bool/int, and treats an empty string as
+# "not set" (GetValue<bool?>/<int?> fall back to their defaults), so the unused provider's
+# section is harmless and the JSON stays valid when the variables are empty.
 generate_manager() {
     cat << EOF
 {
@@ -274,7 +282,21 @@ $(serilog_section),
   "DocumentStorage": {
     "Provider": "${DOCUMENT_STORAGE_PROVIDER:-LocalFileSystem}",
     "LocalRootPath": "${DOCUMENT_STORAGE_LOCAL_ROOT:-/app/documents}",
-    "RetentionDays": ${DOCUMENT_RETENTION_DAYS:-1825}
+    "RetentionDays": "${DOCUMENT_RETENTION_DAYS:-1825}",
+    "S3": {
+      "BucketName": "${DOCUMENT_S3_BUCKET_NAME:-}",
+      "Region": "${DOCUMENT_S3_REGION:-}",
+      "ServiceUrl": "${DOCUMENT_S3_SERVICE_URL:-}",
+      "ForcePathStyle": "${DOCUMENT_S3_FORCE_PATH_STYLE:-}",
+      "AccessKey": "${DOCUMENT_S3_ACCESS_KEY:-}",
+      "SecretKey": "${DOCUMENT_S3_SECRET_KEY:-}",
+      "PresignedExpiryMinutes": "${DOCUMENT_S3_PRESIGNED_EXPIRY_MINUTES:-}"
+    },
+    "AzureBlob": {
+      "ConnectionString": "${DOCUMENT_AZURE_CONNECTION_STRING:-}",
+      "ContainerName": "${DOCUMENT_AZURE_CONTAINER_NAME:-}",
+      "SasExpiryMinutes": "${DOCUMENT_AZURE_SAS_EXPIRY_MINUTES:-}"
+    }
   },
   "OpenIddict": {
     "LoadCertFromFile": true,
@@ -431,36 +453,14 @@ $(serilog_section),
 EOF
 }
 
-# -----------------------------------------------------------------------------
-# Template-driven generation
-# -----------------------------------------------------------------------------
-# Renders "common" merged with "services.<name>" from config/appsettings.template.json
-# and expands the ${VAR} placeholders from the environment. Requires jq + envsubst;
-# callers must provide a fallback when this returns non-zero.
-template_service() {
-    local service=$1
-
-    [ -f "$TEMPLATE_FILE" ] || return 1
-    command -v jq &> /dev/null || return 1
-    command -v envsubst &> /dev/null || return 1
-
-    local section
-    section=$(jq -r --arg s "$service" '.services[$s] // empty' "$TEMPLATE_FILE" 2>/dev/null) || return 1
-    [ -n "$section" ] || return 1
-
-    jq --arg s "$service" '.common * .services[$s]' "$TEMPLATE_FILE" | envsubst
-}
-
 # Generate appsettings for the SyncWorker background service
+#
+# Emitted from this script only (like every other service above) instead of rendering
+# config/appsettings.template.json: the template's "common" section carries web-API keys
+# (AllowedHosts, AllowedCorsOrigins, AuthorityServer.Validate*/ValidAudience) plus a
+# "_comment" documentation key, none of which belong in a deployed worker config. The
+# SyncWorker has no inbound API - this matches TrackHubRouter/src/SyncWorker/appsettings.json.
 generate_syncworker() {
-    local rendered
-    if rendered=$(template_service syncworker) && [ -n "$rendered" ]; then
-        printf '%s\n' "$rendered"
-        return 0
-    fi
-
-    print_warning "No 'syncworker' section in $TEMPLATE_FILE (or jq/envsubst missing); using built-in defaults" >&2
-
     cat << EOF
 {
   "ConnectionStrings": {
