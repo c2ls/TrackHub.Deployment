@@ -210,6 +210,23 @@ services:
       - DocumentStorage__AzureBlob__ContainerName=${DOCUMENT_AZURE_CONTAINER_NAME:-}
       - DocumentStorage__AzureBlob__ConnectionString=${DOCUMENT_AZURE_CONNECTION_STRING:-}
       - DocumentStorage__AzureBlob__SasExpiryMinutes=${DOCUMENT_AZURE_SAS_EXPIRY_MINUTES:-}
+      # Notifications (spec 05). Portal link in channel messages + delivery retention.
+      - AppSettings__PortalBaseUrl=${PORTAL_BASE_URL:-https://${DOMAIN}}
+      - AppSettings__NotificationDeliveryRetentionDays=${NOTIFICATION_DELIVERY_RETENTION_DAYS:-90}
+      # Email channel (SMTP). Empty host disables sends. External blocker: a production relay.
+      - AppSettings__Smtp__Host=${SMTP_HOST:-}
+      - AppSettings__Smtp__Port=${SMTP_PORT:-25}
+      - AppSettings__Smtp__Username=${SMTP_USERNAME:-}
+      - AppSettings__Smtp__Password=${SMTP_PASSWORD:-}
+      - AppSettings__Smtp__UseStartTls=${SMTP_USE_STARTTLS:-false}
+      - AppSettings__Smtp__FromAddress=${SMTP_FROM_ADDRESS:-alerts@trackhub.local}
+      - AppSettings__Smtp__FromName=${SMTP_FROM_NAME:-TrackHub Alerts}
+      # WhatsApp channel (Meta Cloud API, outbound utility templates only). Empty values disable
+      # sends. External blocker: verified Meta Business + WABA + approved templates.
+      - AppSettings__WhatsApp__ApiBaseUrl=${WHATSAPP_API_BASE_URL:-https://graph.facebook.com/v21.0}
+      - AppSettings__WhatsApp__PhoneNumberId=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - AppSettings__WhatsApp__AccessToken=${WHATSAPP_ACCESS_TOKEN:-}
+      - AppSettings__WhatsApp__TemplateName=${WHATSAPP_TEMPLATE_NAME:-trackhub_alert}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}

@@ -678,6 +678,7 @@ The master template at `config/appsettings.template.json` shows all configurable
 | `${ROUTER_CLIENT_ID}` / `${ROUTER_CLIENT_SECRET}` | Router | `router_client` service credentials |
 | `${SYNCWORKER_CLIENT_ID}` / `${SYNCWORKER_CLIENT_SECRET}` | SyncWorker | `syncworker_client` service credentials |
 | `${DOCUMENT_STORAGE_PROVIDER}` / `${DOCUMENT_STORAGE_LOCAL_ROOT}` / `${DOCUMENT_RETENTION_DAYS}` | Manager | Document management storage |
+| `${SMTP_*}` / `${WHATSAPP_*}` / `${PORTAL_BASE_URL}` / `${NOTIFICATION_DELIVERY_RETENTION_DAYS}` | Manager | Alerts & notifications delivery channels (spec 05) |
 | `${GRAPHQL_*_SERVICE}` | Various | Internal service URLs (includes `GRAPHQL_TELEMETRY_SERVICE`) |
 
 ### When to Regenerate
@@ -718,6 +719,10 @@ Regenerate appsettings when you change:
 | `DOCUMENT_STORAGE_PROVIDER` | Manager document store (`LocalFileSystem`/`S3`/`AzureBlob`) | `LocalFileSystem` |
 | `DOCUMENT_STORAGE_LOCAL_ROOT` | Path inside the container (LocalFileSystem only) | `/app/documents` |
 | `DOCUMENT_RETENTION_DAYS` | Byte-retention cleanup horizon | `1825` |
+| `PORTAL_BASE_URL` | Portal URL embedded in notification messages | `https://domain.com` |
+| `NOTIFICATION_DELIVERY_RETENTION_DAYS` | Notification delivery history retention | `90` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_STARTTLS` / `SMTP_FROM_ADDRESS` / `SMTP_FROM_NAME` | Email channel (empty host disables sends; production needs a real relay — external blocker) | empty |
+| `WHATSAPP_API_BASE_URL` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_TEMPLATE_NAME` | WhatsApp channel (Meta Cloud API, outbound utility templates; empty ids disable sends — external blocker: verified Meta Business + WABA + approved templates) | empty |
 
 ### Document Storage: S3 / Azure Blob
 
