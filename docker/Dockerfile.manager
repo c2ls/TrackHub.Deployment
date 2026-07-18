@@ -6,7 +6,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy solution and project files
-COPY TrackHub.Manager/TrackHub.Manager.sln .
+COPY TrackHub.Manager/TrackHub.Manager.slnx .
 COPY TrackHub.Manager/Directory.Build.props .
 COPY TrackHub.Manager/Directory.Packages.props .
 COPY TrackHub.Manager/global.json .

@@ -6,12 +6,13 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy solution and project files
-COPY TrackHub.Geofencing/TrackHub.Geofencing.sln .
+COPY TrackHub.Geofencing/TrackHub.Geofencing.slnx .
 COPY TrackHub.Geofencing/Directory.Build.props .
 COPY TrackHub.Geofencing/Directory.Packages.props .
 COPY TrackHub.Geofencing/global.json .
 COPY TrackHub.Geofencing/src/Application/Application.csproj src/Application/
 COPY TrackHub.Geofencing/src/Domain/Domain.csproj src/Domain/
+COPY TrackHub.Geofencing/src/Infrastructure/ManagerApi/ManagerApi.csproj src/Infrastructure/ManagerApi/
 COPY TrackHub.Geofencing/src/Infrastructure/ManagerDB/ManagerDB.csproj src/Infrastructure/ManagerDB/
 COPY TrackHub.Geofencing/src/Web/Web.csproj src/Web/
 

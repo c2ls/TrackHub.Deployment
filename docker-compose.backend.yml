@@ -260,7 +260,11 @@ services:
       - AuthorityServer__ValidateAudience=true
       - AuthorityServer__ValidateIssuer=true
       - AuthorityServer__ValidateIssuerSigningKey=true
+      - AuthorityServer__ClientId=${GEOFENCE_CLIENT_ID}
+      - AuthorityServer__ClientSecret=${GEOFENCE_CLIENT_SECRET}
+      - AuthorityServer__Scope=service_scope
       - AppSettings__GraphQLIdentityService=${GRAPHQL_IDENTITY_SERVICE}
+      - AppSettings__GraphQLManagerService=${GRAPHQL_MANAGER_SERVICE}
       - OpenIddict__LoadCertFromFile=true
       - OpenIddict__Path=/app/certificates/certificate.pfx
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}

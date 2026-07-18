@@ -52,6 +52,11 @@
       "clientId": "security_client",
       "clientSecret": "<<GENERATE_A_SECURE_SECRET>>",
       "scope": "service_scope"
+    },
+    {
+      "clientId": "geofence_client",
+      "clientSecret": "<<GENERATE_A_SECURE_SECRET>>",
+      "scope": "service_scope"
     }
   ]
 }

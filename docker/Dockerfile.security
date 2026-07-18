@@ -6,7 +6,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy solution and project files
-COPY TrackHubSecurity/TrackHub.Security.sln .
+COPY TrackHubSecurity/TrackHub.Security.slnx .
 COPY TrackHubSecurity/Directory.Build.props .
 COPY TrackHubSecurity/Directory.Packages.props .
 COPY TrackHubSecurity/global.json .

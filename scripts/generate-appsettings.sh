@@ -371,10 +371,14 @@ $(serilog_section),
     "ValidateAudience": true,
     "ValidAudience": "${VALID_AUDIENCE}",
     "ValidateIssuer": true,
-    "ValidateIssuerSigningKey": true
+    "ValidateIssuerSigningKey": true,
+    "ClientId": "${GEOFENCE_CLIENT_ID}",
+    "ClientSecret": "${GEOFENCE_CLIENT_SECRET}",
+    "Scope": "service_scope"
   },
   "AppSettings": {
-    "GraphQLIdentityService": "${GRAPHQL_IDENTITY_SERVICE}"
+    "GraphQLIdentityService": "${GRAPHQL_IDENTITY_SERVICE}",
+    "GraphQLManagerService": "${GRAPHQL_MANAGER_SERVICE}"
   },
   "OpenIddict": {
     "LoadCertFromFile": true,

@@ -5,21 +5,21 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy AuthorityServer ClientSeeder
-COPY TrackHub.AuthorityServer/AuthorityServer.sln ./authority/
+COPY TrackHub.AuthorityServer/AuthorityServer.slnx ./authority/
 COPY TrackHub.AuthorityServer/Directory.Build.props ./authority/
 COPY TrackHub.AuthorityServer/Directory.Packages.props ./authority/
 COPY TrackHub.AuthorityServer/global.json ./authority/
 COPY TrackHub.AuthorityServer/src/ ./authority/src/
 
 # Copy TrackHubSecurity DBInitializer
-COPY TrackHubSecurity/TrackHub.Security.sln ./security/
+COPY TrackHubSecurity/TrackHub.Security.slnx ./security/
 COPY TrackHubSecurity/Directory.Build.props ./security/
 COPY TrackHubSecurity/Directory.Packages.props ./security/
 COPY TrackHubSecurity/global.json ./security/
 COPY TrackHubSecurity/src/ ./security/src/
 
 # Copy TrackHub.Manager DBInitializer
-COPY TrackHub.Manager/TrackHub.Manager.sln ./manager/
+COPY TrackHub.Manager/TrackHub.Manager.slnx ./manager/
 COPY TrackHub.Manager/Directory.Build.props ./manager/
 COPY TrackHub.Manager/Directory.Packages.props ./manager/
 COPY TrackHub.Manager/global.json ./manager/

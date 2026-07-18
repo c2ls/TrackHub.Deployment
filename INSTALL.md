@@ -516,16 +516,17 @@ Edit `config/clients.json`:
   "serviceClients": [
     {"clientId": "syncworker_client", "clientSecret": "generate-a-secure-secret-here", "scope": "service_scope"},
     {"clientId": "router_client",     "clientSecret": "generate-a-secure-secret-here", "scope": "service_scope"},
-    {"clientId": "security_client",   "clientSecret": "generate-a-secure-secret-here", "scope": "service_scope"}
+    {"clientId": "security_client",   "clientSecret": "generate-a-secure-secret-here", "scope": "service_scope"},
+    {"clientId": "geofence_client",   "clientSecret": "generate-a-secure-secret-here", "scope": "service_scope"}
   ]
 }
 ```
 
 > **Important:** The `resource` for every scope must be `trackhub_api` (this is the
 > token audience the APIs validate). Each service client's `clientSecret` must match the
-> `${SYNCWORKER_CLIENT_SECRET}` / `${ROUTER_CLIENT_SECRET}` / `${SECURITY_CLIENT_SECRET}`
-> values in your `.env`, and `OPENIDDICT_SCOPES` in `.env` must list the same scopes
-> (`mobile_scope,driver_mobile_scope,web_scope,service_scope`).
+> `${SYNCWORKER_CLIENT_SECRET}` / `${ROUTER_CLIENT_SECRET}` / `${SECURITY_CLIENT_SECRET}` /
+> `${GEOFENCE_CLIENT_SECRET}` values in your `.env`, and `OPENIDDICT_SCOPES` in `.env` must
+> list the same scopes (`mobile_scope,driver_mobile_scope,web_scope,service_scope`).
 
 ### Step 8: Deploy
 
@@ -677,9 +678,11 @@ The master template at `config/appsettings.template.json` shows all configurable
 | `${SECURITY_CLIENT_ID}` / `${SECURITY_CLIENT_SECRET}` | Security | `security_client` service credentials (audit forwarding) |
 | `${ROUTER_CLIENT_ID}` / `${ROUTER_CLIENT_SECRET}` | Router | `router_client` service credentials |
 | `${SYNCWORKER_CLIENT_ID}` / `${SYNCWORKER_CLIENT_SECRET}` | SyncWorker | `syncworker_client` service credentials |
+| `${GEOFENCE_CLIENT_ID}` / `${GEOFENCE_CLIENT_SECRET}` | Geofencing | `geofence_client` service credentials (alert emission + dwell-evaluator job runs toward Manager) |
 | `${DOCUMENT_STORAGE_PROVIDER}` / `${DOCUMENT_STORAGE_LOCAL_ROOT}` / `${DOCUMENT_RETENTION_DAYS}` | Manager | Document management storage |
-| `${SMTP_*}` / `${WHATSAPP_*}` / `${PORTAL_BASE_URL}` / `${NOTIFICATION_DELIVERY_RETENTION_DAYS}` | Manager | Alerts & notifications delivery channels (spec 05) |
+| `${SMTP_*}` / `${WHATSAPP_*}` / `${PORTAL_BASE_URL}` / `${NOTIFICATION_DELIVERY_RETENTION_DAYS}` | Manager | Alerts & notifications delivery channels |
 | `${GRAPHQL_*_SERVICE}` | Various | Internal service URLs (includes `GRAPHQL_TELEMETRY_SERVICE`) |
+| `AppSettings__Reporting__MaxExportRows` / `__MaxPdfRows` / `__PreviewRows` | Reporting | Report export/preview row limits. Defaults 100000 / 500 / 100 are baked into the template; override at runtime with these env vars — no rebuild needed. |
 
 ### When to Regenerate
 
@@ -715,6 +718,8 @@ Regenerate appsettings when you change:
 | `ROUTER_CLIENT_SECRET` | Router OAuth client secret | `your-secret` |
 | `SECURITY_CLIENT_ID` | Security OAuth client ID | `security_client` |
 | `SECURITY_CLIENT_SECRET` | Security OAuth client secret | `your-secret` |
+| `GEOFENCE_CLIENT_ID` | Geofencing OAuth client ID | `geofence_client` |
+| `GEOFENCE_CLIENT_SECRET` | Geofencing OAuth client secret | `your-secret` |
 | `REACT_APP_TELEMETRY_ENDPOINT` | Frontend Telemetry GraphQL URL | `https://domain.com/Telemetry/graphql` |
 | `DOCUMENT_STORAGE_PROVIDER` | Manager document store (`LocalFileSystem`/`S3`/`AzureBlob`) | `LocalFileSystem` |
 | `DOCUMENT_STORAGE_LOCAL_ROOT` | Path inside the container (LocalFileSystem only) | `/app/documents` |
@@ -1231,6 +1236,7 @@ Keys that are **new or changed** and required by this release:
 | `DOCUMENT_STORAGE_PROVIDER` / `DOCUMENT_STORAGE_LOCAL_ROOT` / `DOCUMENT_RETENTION_DAYS` | **Add** (defaults work; documents persist to the `manager-documents` volume). |
 | `OPENIDDICT_SCOPES` | **Change** to `mobile_scope,driver_mobile_scope,web_scope,service_scope`. |
 | `SYNCWORKER_CLIENT_ID` | **Change** to `syncworker_client`. |
+| `GEOFENCE_CLIENT_ID` / `GEOFENCE_CLIENT_SECRET` | **Add**. Geofencing now emits alert events and job runs to Manager; must match the `geofence_client` in `clients.json`. |
 
 ### 4. Reconcile `config/clients.json`
 
@@ -1238,7 +1244,7 @@ Bring your `clients.json` in line with `config/clients.json.example`:
 
 - **scopes:** add `driver_mobile_scope` and `service_scope` (`resource: trackhub_api`); remove any `sec_scope`.
 - **PKCEClients:** add `mobile_client` and `driver_mobile_client` if you run the mobile/driver apps.
-- **serviceClients:** add `router_client` and `security_client`, and give **every** service client `"scope": "service_scope"`. Each `clientSecret` must equal the matching `*_CLIENT_SECRET` in `.env`.
+- **serviceClients:** add `router_client`, `security_client`, and `geofence_client`, and give **every** service client `"scope": "service_scope"`. Each `clientSecret` must equal the matching `*_CLIENT_SECRET` in `.env`.
 
 ### 5. Apply database migrations
 
@@ -1595,7 +1601,7 @@ docker system prune -a
 1. **Never commit `.env` files** to version control
 2. **Use strong passwords** for database and certificates
 3. **Rotate the seeded OAuth client secrets** (`syncworker_client`, `router_client`,
-   `security_client`) before
+   `security_client`, `geofence_client`) before
    exposing any environment beyond local development
 4. **Keep Docker and OS updated** with security patches
 5. **Use Let's Encrypt** for production SSL certificates
