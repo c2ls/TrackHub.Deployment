@@ -114,7 +114,7 @@ nano .env
 | `CERTIFICATE_PASSWORD` | A strong password for the token-signing certificate |
 | `ENCRYPTION_KEY` | A GUID (generate with `uuidgen` or any GUID tool) |
 | `AUTHORITY_URL` | `https://trackhub.example.com/Identity` |
-| `SYNCWORKER_CLIENT_SECRET` / `ROUTER_CLIENT_SECRET` / `SECURITY_CLIENT_SECRET` | Service-to-service secrets — must match `config/clients.json` (Step 6) |
+| `SYNCWORKER_CLIENT_SECRET` / `ROUTER_CLIENT_SECRET` / `SECURITY_CLIENT_SECRET` / `GEOFENCE_CLIENT_SECRET` | Service-to-service secrets — must match `config/clients.json` (Step 6) |
 
 Replace `DB_HOST` with your PostgreSQL server address (`localhost` if on the same server).
 

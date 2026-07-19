@@ -397,15 +397,16 @@ ENCRYPTION_KEY=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 SYNCWORKER_CLIENT_SECRET=your-syncworker-client-secret
 ROUTER_CLIENT_SECRET=your-router-client-secret
 SECURITY_CLIENT_SECRET=your-security-client-secret
+GEOFENCE_CLIENT_SECRET=your-geofence-client-secret
 
 # Update all REACT_APP_ URLs with your domain
 REACT_APP_AUTHORIZATION_ENDPOINT=https://trackhub.example.com/Identity/authorize
 # ... etc
 ```
 
-`DB_CONNECTION_TELEMETRY` and the three `*_CLIENT_SECRET` keys have **no defaults** in
+`DB_CONNECTION_TELEMETRY` and the four `*_CLIENT_SECRET` keys have **no defaults** in
 `docker-compose.yml`. Omitting them yields a Telemetry service with an empty connection
-string and three service clients that cannot authenticate.
+string and four service clients that cannot authenticate.
 
 ### Step 6: SSL and OpenIddict Certificates
 
@@ -720,7 +721,14 @@ Regenerate appsettings when you change:
 | `SECURITY_CLIENT_SECRET` | Security OAuth client secret | `your-secret` |
 | `GEOFENCE_CLIENT_ID` | Geofencing OAuth client ID | `geofence_client` |
 | `GEOFENCE_CLIENT_SECRET` | Geofencing OAuth client secret | `your-secret` |
-| `REACT_APP_TELEMETRY_ENDPOINT` | Frontend Telemetry GraphQL URL | `https://domain.com/Telemetry/graphql` |
+| `GRAPHQL_IDENTITY_SERVICE` / `GRAPHQL_SECURITY_SERVICE` | Internal URL of the Security service (both point at the same container) | `http://security:8080/graphql/` |
+| `GRAPHQL_MANAGER_SERVICE` / `GRAPHQL_TELEMETRY_SERVICE` / `GRAPHQL_ROUTER_SERVICE` / `GRAPHQL_GEOFENCE_SERVICE` | Internal Docker-network GraphQL URLs for service-to-service calls | `http://manager:8080/graphql/` |
+| `REACT_APP_DEFAULT_LAT` / `REACT_APP_DEFAULT_LNG` | Default map center when the user denies location permission | `4.624335` / `-74.063644` |
+| `REACT_APP_CLIENT_ID` | Frontend OAuth client id (PKCE client in `clients.json`) | `web_client` |
+| `REACT_APP_AUTHORIZATION_ENDPOINT` / `REACT_APP_TOKEN_ENDPOINT` / `REACT_APP_REVOKE_TOKEN_ENDPOINT` / `REACT_APP_LOGOUT_ENDPOINT` | Public OAuth endpoints on the Authority server | `https://domain.com/Identity/authorize` etc. |
+| `REACT_APP_CALLBACK_ENDPOINT` | OAuth redirect URI — must match the `web_client` `uri` in `clients.json` | `https://domain.com/authentication/callback` |
+| `REACT_APP_MANAGER_ENDPOINT` / `REACT_APP_ROUTER_ENDPOINT` / `REACT_APP_SECURITY_ENDPOINT` / `REACT_APP_GEOFENCING_ENDPOINT` / `REACT_APP_TELEMETRY_ENDPOINT` | Public GraphQL API URLs per service | `https://domain.com/Manager/graphql` |
+| `REACT_APP_REPORTING_ENDPOINT` | Public Reporting REST API base URL | `https://domain.com/Reporting/` |
 | `DOCUMENT_STORAGE_PROVIDER` | Manager document store (`LocalFileSystem`/`S3`/`AzureBlob`) | `LocalFileSystem` |
 | `DOCUMENT_STORAGE_LOCAL_ROOT` | Path inside the container (LocalFileSystem only) | `/app/documents` |
 | `DOCUMENT_RETENTION_DAYS` | Byte-retention cleanup horizon | `1825` |
@@ -728,6 +736,11 @@ Regenerate appsettings when you change:
 | `NOTIFICATION_DELIVERY_RETENTION_DAYS` | Notification delivery history retention | `90` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_USE_STARTTLS` / `SMTP_FROM_ADDRESS` / `SMTP_FROM_NAME` | Email channel (empty host disables sends; production needs a real relay — external blocker) | empty |
 | `WHATSAPP_API_BASE_URL` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_TEMPLATE_NAME` | WhatsApp channel (Meta Cloud API, outbound utility templates; empty ids disable sends — external blocker: verified Meta Business + WABA + approved templates) | empty |
+
+> **`REACT_APP_*` values are baked into the frontend bundle at build time** — changing any of
+> them requires rebuilding the frontend image (`./scripts/update-service.sh frontend`), not
+> just restarting the container. The `GRAPHQL_*_SERVICE` URLs are internal Docker-network
+> addresses; leave them at their defaults unless you rename services in `docker-compose.yml`.
 
 ### Document Storage: S3 / Azure Blob
 
