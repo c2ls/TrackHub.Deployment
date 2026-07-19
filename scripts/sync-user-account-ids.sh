@@ -27,16 +27,29 @@ print_warning() { echo -e "${YELLOW}⚠ $1${NC}"; }
 print_error() { echo -e "${RED}✗ $1${NC}"; }
 print_info() { echo -e "${BLUE}ℹ $1${NC}"; }
 
-# Load environment
-ENV_FILE="${1:-$PROJECT_DIR/.env}"
+# Parse arguments: an optional env-file path and the --yes flag, in any order
+AUTO_YES=""
+ENV_FILE=""
+for arg in "$@"; do
+    case "$arg" in
+        --yes) AUTO_YES=1 ;;
+        *) ENV_FILE="$arg" ;;
+    esac
+done
+ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env}"
+
+# Load environment. Inside the db-init container there is no .env file — the
+# DB_CONNECTION_* variables arrive via the container environment instead.
 if [ -f "$ENV_FILE" ]; then
     print_info "Loading environment from: $ENV_FILE"
     set -a
     source "$ENV_FILE"
     set +a
+elif [ -n "$DB_CONNECTION_SECURITY" ] && [ -n "$DB_CONNECTION_MANAGER" ]; then
+    print_info "No env file at $ENV_FILE; using DB_CONNECTION_* from the environment"
 else
     print_error "Environment file not found: $ENV_FILE"
-    print_info "Usage: $0 [path-to-env-file]"
+    print_info "Usage: $0 [path-to-env-file] [--yes]"
     exit 1
 fi
 
@@ -156,7 +169,7 @@ echo "  - Update TrackHubSecurity.security.user.accountid: -> $ACCOUNT_ID"
 echo ""
 
 # Confirmation prompt (skip if --yes flag is provided)
-if [[ "$*" != *"--yes"* ]]; then
+if [ -z "$AUTO_YES" ]; then
     read -p "Do you want to proceed with these changes? (y/N) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
