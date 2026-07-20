@@ -175,16 +175,36 @@ ensure_trackhubcommon() {
     fi
 }
 
+ensure_generated_config() {
+    # Backend services read their configuration from generated/appsettings.<service>.json,
+    # which compose bind-mounts read-only over each container's /app/appsettings.json.
+    # Regenerate from .env so the mounted configs reflect the current environment.
+    if [ -f "$PROJECT_DIR/.env" ]; then
+        print_info "Generating service configs into generated/ from .env..."
+        "$SCRIPT_DIR/sync-config.sh" generate
+        print_success "Service configs generated"
+    elif [ -z "$(ls -A "$PROJECT_DIR/generated" 2>/dev/null)" ]; then
+        print_error "No .env file found and generated/ is empty."
+        print_error "Create $PROJECT_DIR/.env (cp .env.example .env) and configure it before deploying."
+        exit 1
+    else
+        print_warning "No .env file found — deploying with the existing generated/ configs."
+    fi
+}
+
 deploy() {
     print_info "Starting deployment..."
-    
+
     cd "$PROJECT_DIR"
-    
-    # Stop existing containers
-    print_info "Stopping existing containers..."
-    docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
-    
-    # Build or pull images
+
+    # Backend/full deployments need the generated service configs the compose files mount.
+    if [ "$DEPLOYMENT_TYPE" != "frontend" ]; then
+        ensure_generated_config
+    fi
+
+    # Build or pull images FIRST, while the current stack keeps running.
+    # The stack is only taken down once new images exist, so a failed build
+    # leaves the running deployment untouched.
     if [ "$BUILD_TYPE" == "--build" ]; then
         if [ "$DEPLOYMENT_TYPE" != "frontend" ]; then
             ensure_trackhubcommon
@@ -200,7 +220,11 @@ deploy() {
         print_info "Pulling images..."
         docker compose -f "$COMPOSE_FILE" pull
     fi
-    
+
+    # Stop existing containers
+    print_info "Stopping existing containers..."
+    docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+
     # Start services
     if [ "$SKIP_INIT" = true ]; then
         print_warning "Skipping database initialization (--skip-init flag set)"

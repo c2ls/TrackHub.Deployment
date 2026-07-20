@@ -26,7 +26,6 @@ print_info() { echo -e "${BLUE}ℹ $1${NC}"; }
 # Default values
 OUTPUT_DIR=""
 ENV_FILE="$PROJECT_DIR/.env"
-DEPLOY_TO_SOURCES=false
 
 usage() {
     echo "Usage: $0 [options]"
@@ -34,14 +33,12 @@ usage() {
     echo "Options:"
     echo "  --output-dir <dir>   Output directory for generated files (default: prints to stdout)"
     echo "  --env-file <file>    Environment file to load (default: ../.env)"
-    echo "  --deploy-to-sources  Deploy generated files directly to source repositories"
     echo "  --service <name>     Generate only for specific service"
     echo "  --list-services      List available services"
     echo "  --help               Show this help"
     echo ""
     echo "Examples:"
     echo "  $0 --output-dir ./generated"
-    echo "  $0 --deploy-to-sources"
     echo "  $0 --service manager --output-dir ./generated"
 }
 
@@ -56,10 +53,6 @@ while [[ $# -gt 0 ]]; do
         --env-file)
             ENV_FILE="$2"
             shift 2
-            ;;
-        --deploy-to-sources)
-            DEPLOY_TO_SOURCES=true
-            shift
             ;;
         --service)
             SERVICE_FILTER="$2"
@@ -110,18 +103,6 @@ VALID_AUDIENCE=${VALID_AUDIENCE:-"trackhub_api"}
 # config/appsettings.template.json documents every configurable value and its environment
 # variable mapping; the generators below are the single source of truth for what is written
 # (keep them in sync with the template when adding a setting).
-
-# Service to source directory mapping
-declare -A SERVICE_PATHS=(
-    ["authority"]="TrackHub.AuthorityServer/src/Web"
-    ["security"]="TrackHubSecurity/src/Web"
-    ["manager"]="TrackHub.Manager/src/Web"
-    ["router"]="TrackHubRouter/src/Web"
-    ["geofencing"]="TrackHub.Geofencing/src/Web"
-    ["telemetry"]="TrackHub.Telemetry/src/Web"
-    ["reporting"]="TrackHub.Reporting/src/Web"
-    ["syncworker"]="TrackHubRouter/src/SyncWorker"
-)
 
 # Serilog + Columns blocks, kept in sync with config/appsettings.template.json.
 # The PostgreSQL sink resolves "connectionString" as a connection string NAME
@@ -525,15 +506,7 @@ process_service() {
             ;;
     esac
     
-    if [ "$DEPLOY_TO_SOURCES" = true ]; then
-        local target_dir="$PROJECT_DIR/../${SERVICE_PATHS[$service]}"
-        if [ -d "$target_dir" ]; then
-            echo "$content" > "$target_dir/appsettings.json"
-            print_success "Generated: $target_dir/appsettings.json"
-        else
-            print_warning "Directory not found: $target_dir"
-        fi
-    elif [ -n "$OUTPUT_DIR" ]; then
+    if [ -n "$OUTPUT_DIR" ]; then
         mkdir -p "$OUTPUT_DIR"
         echo "$content" > "$OUTPUT_DIR/appsettings.$service.json"
         print_success "Generated: $OUTPUT_DIR/appsettings.$service.json"
@@ -560,7 +533,7 @@ else
     done
 fi
 
-if [ "$DEPLOY_TO_SOURCES" = true ] || [ -n "$OUTPUT_DIR" ]; then
+if [ -n "$OUTPUT_DIR" ]; then
     echo ""
     print_success "AppSettings generation complete!"
 fi

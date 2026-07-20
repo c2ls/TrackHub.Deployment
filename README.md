@@ -95,7 +95,6 @@ nano config/clients.json
 #    commands (Security, Manager, Geofencing). Skipping this makes db-init fail.
 
 # 4. Generate certificates
-chmod +x scripts/*.sh
 sudo ./scripts/generate-certs.sh your-domain.com admin@your-domain.com
 
 # 5. Deploy
@@ -166,23 +165,24 @@ authoritative update procedure and how deterministic rebuilds work.
 
 ## Configuration Management
 
-All services share similar `appsettings.json` configurations. Use the centralized configuration tools to update them all at once:
+All backend services share similar `appsettings.json` configurations, generated from the
+central `.env` into `generated/` and bind-mounted read-only over each container's
+`/app/appsettings.json` by the compose files. `deploy.sh` regenerates them from `.env`
+before every backend/full deploy; environment variables set in compose still take precedence
+over the mounted file. Use the centralized configuration tools to work with them directly:
 
 ```bash
-# Generate appsettings.json for all services (preview)
+# Preview appsettings.json for all services (stdout)
 ./scripts/generate-appsettings.sh
 
-# Generate to output directory
+# Generate all backend configs into generated/
 ./scripts/generate-appsettings.sh --output-dir ./generated
 
-# Deploy directly to source repositories
-./scripts/generate-appsettings.sh --deploy-to-sources
-
 # Generate for a specific service
-./scripts/generate-appsettings.sh --service manager
+./scripts/generate-appsettings.sh --service manager --output-dir ./generated
 
-# Full config sync (backend + frontend)
-./scripts/sync-config.sh deploy
+# Generate all backend configs (same as generate-appsettings.sh --output-dir generated)
+./scripts/sync-config.sh generate
 
 # Validate configuration
 ./scripts/sync-config.sh validate

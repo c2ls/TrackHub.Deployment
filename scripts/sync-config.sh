@@ -27,8 +27,8 @@ usage() {
     echo "Usage: $0 <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  generate     Generate appsettings.json for all backend services"
-    echo "  deploy       Generate and deploy to source repositories"
+    echo "  generate     Generate appsettings.json for all backend services into ./generated"
+    echo "  deploy       Alias for generate (compose bind-mounts the generated configs read-only)"
     echo "  frontend     Generate React .env file"
     echo "  validate     Validate current configuration"
     echo "  show         Show current configuration values"
@@ -181,19 +181,10 @@ if ! load_env "$ENV_FILE"; then
 fi
 
 case $COMMAND in
-    generate)
-        print_info "Generating appsettings.json files..."
+    generate|deploy)
+        print_info "Generating appsettings.json files into $PROJECT_DIR/generated..."
+        print_info "Compose bind-mounts these read-only over each service's /app/appsettings.json."
         "$SCRIPT_DIR/generate-appsettings.sh" --output-dir "$PROJECT_DIR/generated" --env-file "$ENV_FILE"
-        ;;
-    deploy)
-        print_info "Deploying configuration to source repositories..."
-        if validate_config; then
-            "$SCRIPT_DIR/generate-appsettings.sh" --deploy-to-sources --env-file "$ENV_FILE"
-            generate_frontend_env
-        else
-            print_error "Configuration validation failed. Fix errors before deploying."
-            exit 1
-        fi
         ;;
     frontend)
         print_info "Generating React .env file..."

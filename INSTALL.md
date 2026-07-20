@@ -203,15 +203,7 @@ cp .env.example .env
 nano .env
 ```
 
-### 4. Make the Scripts Executable
-
-Git does not always preserve the execute bit, and every step below runs a script:
-
-```bash
-chmod +x scripts/*.sh
-```
-
-### 5. Create the Database Schema (EF migrations)
+### 4. Create the Database Schema (EF migrations)
 
 > ⚠️ **Required on a fresh install.** `db-init` **seeds data only** — it does not create or
 > alter tables (see [Database Setup](#database-setup)). Deploying against empty databases
@@ -260,7 +252,7 @@ cd /opt/trackhub/TrackHub.Deployment
 Geofencing requires the `postgis` extension in the `TrackHub` database (see
 [Database Setup](#database-setup)).
 
-### 6. Set Up Certificates
+### 5. Set Up Certificates
 
 ```bash
 # Obtain Let's Encrypt SSL certificate + generate OpenIddict certificate
@@ -269,7 +261,7 @@ Geofencing requires the `postgis` extension in the `TrackHub` database (see
 sudo ./scripts/generate-certs.sh your-domain.com admin@your-domain.com
 ```
 
-### 7. Configure OAuth Clients
+### 6. Configure OAuth Clients
 
 ```bash
 # Copy and edit clients.json
@@ -280,14 +272,14 @@ nano config/clients.json
 # secret to match the matching *_CLIENT_SECRET in .env
 ```
 
-### 8. Deploy
+### 7. Deploy
 
 ```bash
 # Deploy full stack
 ./scripts/deploy.sh full --build
 ```
 
-### 9. Verify Deployment
+### 8. Verify Deployment
 
 ```bash
 # Check health
@@ -628,8 +620,13 @@ All backend services share similar `appsettings.json` configurations. Instead of
 ### Configuration Workflow
 
 1. **Edit the central `.env` file** with all your settings
-2. **Run the generator** to create all `appsettings.json` files
-3. **Deploy** to source repositories or use directly in Docker
+2. **Run the generator** to create the `appsettings.json` files in `generated/`
+3. **Deploy** — the compose files bind-mount `generated/appsettings.<service>.json` read-only
+   over each container's `/app/appsettings.json`
+
+`deploy.sh` regenerates the `generated/` files from `.env` before every backend/full
+deployment, so a normal deploy already picks up your `.env` changes. Environment variables
+set in the compose files still take precedence over the mounted `appsettings.json`.
 
 ### Generate AppSettings Files
 
@@ -637,14 +634,11 @@ All backend services share similar `appsettings.json` configurations. Instead of
 # Preview all generated configurations (stdout)
 ./scripts/generate-appsettings.sh
 
-# Generate to a directory for review
+# Generate all backend configs into generated/
 ./scripts/generate-appsettings.sh --output-dir ./generated
 
 # Generate for a specific service only
 ./scripts/generate-appsettings.sh --service manager --output-dir ./generated
-
-# Deploy directly to source repository folders
-./scripts/generate-appsettings.sh --deploy-to-sources
 ```
 
 ### Full Configuration Sync
@@ -658,11 +652,8 @@ The `sync-config.sh` script handles both backend and frontend configuration:
 # Show current configuration values
 ./scripts/sync-config.sh show
 
-# Generate all backend appsettings.json files
+# Generate all backend appsettings.json files into generated/
 ./scripts/sync-config.sh generate
-
-# Deploy to all source repositories (backend + frontend .env)
-./scripts/sync-config.sh deploy
 
 # Generate only the React .env file
 ./scripts/sync-config.sh frontend

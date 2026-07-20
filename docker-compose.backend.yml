@@ -51,6 +51,7 @@ services:
       - OpenIddict__Scopes=${OPENIDDICT_SCOPES:-mobile_scope,driver_mobile_scope,web_scope,service_scope}
     volumes:
       - ./certificates:/app/certificates:ro
+      - ./generated/appsettings.authority.json:/app/appsettings.json:ro
     networks:
       - trackhub-network
     deploy:
@@ -101,6 +102,7 @@ services:
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - ./generated/appsettings.security.json:/app/appsettings.json:ro
     networks:
       - trackhub-network
     deploy:
@@ -164,6 +166,7 @@ services:
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - ./generated/appsettings.manager.json:/app/appsettings.json:ro
       - manager-documents:/app/documents
     networks:
       - trackhub-network
@@ -222,6 +225,7 @@ services:
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - ./generated/appsettings.router.json:/app/appsettings.json:ro
     networks:
       - trackhub-network
     deploy:
@@ -269,6 +273,7 @@ services:
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - ./generated/appsettings.geofencing.json:/app/appsettings.json:ro
     networks:
       - trackhub-network
     deploy:
@@ -312,6 +317,7 @@ services:
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - ./generated/appsettings.telemetry.json:/app/appsettings.json:ro
     networks:
       - trackhub-network
     deploy:
@@ -358,6 +364,7 @@ services:
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - ./generated/appsettings.reporting.json:/app/appsettings.json:ro
     networks:
       - trackhub-network
     deploy:
@@ -434,6 +441,7 @@ services:
       - OpenIddict__Password=${CERTIFICATE_PASSWORD}
     volumes:
       - ./certificates:/app/certificates:ro
+      - ./generated/appsettings.syncworker.json:/app/appsettings.json:ro
     networks:
       - trackhub-network
     deploy:

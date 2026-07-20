@@ -190,10 +190,6 @@ Re-run these same three commands on **every upgrade that adds migrations**.
 
 ## Step 6: Generate Certificates
 
-```bash
-chmod +x scripts/*.sh
-```
-
 **Add `LETSENCRYPT_EMAIL` to your `.env` file:**
 
 ```env
@@ -341,17 +337,6 @@ Valid service names: `frontend`, `authority`, `security`, `manager`, `router`,
 ---
 
 ## Troubleshooting
-
-**-bash: ./scripts/deploy.sh: Permission denied**
-
-This error occurs when the script files don't have execute permissions. Git may not preserve execute permissions when cloning the repository depending on your system configuration.
-
-**Fix:** Grant execute permissions to all scripts:
-```bash
-chmod +x scripts/*.sh
-```
-
-This makes all shell scripts in the `scripts/` directory executable. If you only need to run specific scripts, you can grant permissions individually (e.g., `chmod +x scripts/deploy.sh`).
 
 **Containers won't start?**
 ```bash
