@@ -185,6 +185,7 @@ git clone https://github.com/shernandezp/TrackHubRouter.git
 git clone https://github.com/shernandezp/TrackHub.Geofencing.git
 git clone https://github.com/shernandezp/TrackHub.Telemetry.git
 git clone https://github.com/shernandezp/TrackHub.Reporting.git
+git clone https://github.com/shernandezp/TrackHubCommon.git
 ```
 
 > `TrackHubRouter` also provides the **SyncWorker** background service — it has no
@@ -225,9 +226,9 @@ schema is created by the Manager migrations).
 # .NET SDK + EF tooling
 dotnet tool install --global dotnet-ef
 
-# The services depend on TrackHubCommon.* packages that are NOT on nuget.org and are no
-# longer committed as .nupkg files. Pack them from source into a local feed, then register
-# it — without this source, restore (and therefore `dotnet ef`) fails.
+# The services depend on TrackHubCommon.* packages that are NOT on nuget.org. Pack them
+# from source into a local feed, then register it — without this source, restore (and
+# therefore `dotnet ef`) fails.
 for p in Domain Application Infrastructure Web; do
   dotnet pack TrackHubCommon/src/Common.$p/Common.$p.csproj -c Release -o /opt/trackhub/local-nuget
 done
@@ -847,7 +848,7 @@ runs, or manual cleanup:
 
 ### TrackHubCommon Packages
 
-TrackHub services depend on the **TrackHubCommon** shared library, which is not published to nuget.org. Rather than committing prebuilt `.nupkg` files, each Dockerfile packs TrackHubCommon from source in a dedicated first build stage (`FROM ... AS common`) that runs `dotnet pack` on the four `Common.*` projects into `/local-nuget`. That output is copied to `/nuget-packages/` alongside `nuget-packages/nuget.config`, which configures both the local source and nuget.org for the restore step.
+TrackHub services depend on the **TrackHubCommon** shared library, which is not published to nuget.org. Each Dockerfile packs TrackHubCommon from source in a dedicated first build stage (`FROM ... AS common`) that runs `dotnet pack` on the four `Common.*` projects into `/local-nuget`. That output is copied to `/nuget-packages/` alongside `nuget-packages/nuget.config`, which configures both the local source and nuget.org for the restore step.
 
 Because packages are built from the `TrackHubCommon/` source inside the build context on every image build, updating TrackHubCommon requires **no manual repack** — just rebuild the affected services. Bump `<Version>` in `TrackHubCommon/Directory.Build.props` and the matching `TrackHubCommon.*` `PackageVersion` entries in each service's `Directory.Packages.props` in lockstep when you introduce a breaking change.
 
@@ -959,8 +960,8 @@ the Manager migrations.
 | Manager | `TrackHub.Manager/src/Infrastructure/ManagerDB` | `TrackHub.Manager/src/Web` | `TrackHub` |
 | Geofencing | `TrackHub.Geofencing/src/Infrastructure/ManagerDB` | `TrackHub.Geofencing/src/Web` | `TrackHub` |
 
-Pack `TrackHubCommon.*` into a local feed once (they are not on nuget.org and are not
-committed as `.nupkg` files), then set the connection strings explicitly — the services'
+Pack `TrackHubCommon.*` into a local feed once (they are not on nuget.org), then set the
+connection strings explicitly — the services'
 `appsettings.json` holds a **localhost dev** connection string that EF would otherwise use
 silently:
 
@@ -1244,6 +1245,16 @@ cd /opt/trackhub
 [ -d TrackHub.Telemetry ] || git clone https://github.com/shernandezp/TrackHub.Telemetry.git
 ```
 
+**TrackHubCommon is also required on disk** — the backend images pack the
+`TrackHubCommon.*` NuGet packages from its source (the `common` build stage).
+`deploy.sh` clones it automatically if missing, but it must be pulled like any other
+repo to pick up changes:
+
+```bash
+cd /opt/trackhub
+[ -d TrackHubCommon ] || git clone https://github.com/shernandezp/TrackHubCommon.git
+```
+
 Then pull the rest using the loop in [Update All Services](#update-all-services).
 No new repo is needed for **SyncWorker** — it builds from `TrackHubRouter`.
 
@@ -1352,7 +1363,7 @@ containers, and the frontend refreshes its static assets on every start. You do
 ```bash
 # Pull latest code for every repository
 cd /opt/trackhub
-for repo in TrackHub TrackHub.AuthorityServer TrackHubSecurity TrackHub.Manager TrackHubRouter TrackHub.Geofencing TrackHub.Telemetry TrackHub.Reporting TrackHub.Deployment; do
+for repo in TrackHub TrackHub.AuthorityServer TrackHubSecurity TrackHub.Manager TrackHubRouter TrackHub.Geofencing TrackHub.Telemetry TrackHub.Reporting TrackHubCommon TrackHub.Deployment; do
   cd /opt/trackhub/$repo && git pull
 done
 

@@ -162,6 +162,19 @@ select_compose_file() {
     print_info "Using compose file: $COMPOSE_FILE"
 }
 
+ensure_trackhubcommon() {
+    # Backend images pack the TrackHubCommon NuGet packages from source inside the
+    # container (the "common" build stage), so the repo must be present in the
+    # build context (the workspace root) alongside the service repos.
+    local workspace_dir
+    workspace_dir="$(dirname "$PROJECT_DIR")"
+    if [ ! -d "$workspace_dir/TrackHubCommon" ]; then
+        print_info "TrackHubCommon repository not found — cloning into $workspace_dir..."
+        git clone https://github.com/shernandezp/TrackHubCommon.git "$workspace_dir/TrackHubCommon"
+        print_success "TrackHubCommon cloned"
+    fi
+}
+
 deploy() {
     print_info "Starting deployment..."
     
@@ -173,6 +186,9 @@ deploy() {
     
     # Build or pull images
     if [ "$BUILD_TYPE" == "--build" ]; then
+        if [ "$DEPLOYMENT_TYPE" != "frontend" ]; then
+            ensure_trackhubcommon
+        fi
         if [ "$NO_CACHE" = true ]; then
             print_info "Building images without Docker layer cache (--no-cache)..."
             docker compose -f "$COMPOSE_FILE" build --no-cache

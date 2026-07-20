@@ -47,6 +47,7 @@ git clone https://github.com/shernandezp/TrackHubRouter.git
 git clone https://github.com/shernandezp/TrackHub.Geofencing.git
 git clone https://github.com/shernandezp/TrackHub.Telemetry.git
 git clone https://github.com/shernandezp/TrackHub.Reporting.git
+git clone https://github.com/shernandezp/TrackHubCommon.git
 ```
 
 > The **SyncWorker** background service is built from the `TrackHubRouter` repo — there is
@@ -146,7 +147,7 @@ dotnet tool install --global dotnet-ef
 ```
 
 **Pack TrackHubCommon into a local feed first.** The services depend on `TrackHubCommon.*`
-packages that are **not on nuget.org** and are no longer committed as `.nupkg` files — pack
+packages that are **not on nuget.org** — pack
 them from source, then register the feed. Without this, `dotnet ef` fails to restore
 (Docker image builds pack them automatically in a `common` stage):
 
@@ -280,7 +281,7 @@ repeated runs, or manual volume cleanup.
 cd /opt/trackhub
 
 # Pull latest code for all repos
-for repo in TrackHub TrackHub.AuthorityServer TrackHubSecurity TrackHub.Manager TrackHubRouter TrackHub.Geofencing TrackHub.Telemetry TrackHub.Reporting TrackHub.Deployment; do
+for repo in TrackHub TrackHub.AuthorityServer TrackHubSecurity TrackHub.Manager TrackHubRouter TrackHub.Geofencing TrackHub.Telemetry TrackHub.Reporting TrackHubCommon TrackHub.Deployment; do
   cd /opt/trackhub/$repo && git pull
 done
 

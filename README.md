@@ -238,7 +238,7 @@ so migrations must be applied (new installations **and** updates) with your EF m
 process, e.g. `dotnet ef database update`, for every stateful service.
 
 > The migration host needs the .NET SDK and `dotnet-ef`. The `TrackHubCommon.*` packages are
-> not on nuget.org and are no longer committed as `.nupkg` files, so pack them from the
+> not on nuget.org, so pack them from the
 > `TrackHubCommon/` source into a local feed and register it before running `dotnet ef`
 > (Docker image builds pack them automatically in a `common` stage).
 > Full commands: [QUICKSTART.md Step 5](QUICKSTART.md) / [INSTALL.md → Applying Migrations](INSTALL.md#applying-migrations).
