@@ -6,7 +6,7 @@ permissions:
   contents: write
 jobs:
   sync:
-    if: github.repository_owner == 'c2ls'
+    if: github.event.repository.fork
     runs-on: ubuntu-latest
     steps:
       - run: |
