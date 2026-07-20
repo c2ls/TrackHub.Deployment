@@ -250,6 +250,13 @@ show_status() {
     echo "  curl -k https://localhost/health/authority"
     echo "  curl -k https://localhost/health/security"
     echo "  curl -k https://localhost/health/manager"
+    echo "  curl -k https://localhost/health/router"
+    echo "  curl -k https://localhost/health/geofencing"
+    echo "  curl -k https://localhost/health/telemetry"
+    echo "  curl -k https://localhost/health/reporting"
+    echo ""
+    print_info "Or open the platform status page (works without signing in):"
+    echo "  https://localhost/status"
 }
 
 # Parse arguments

@@ -10,7 +10,9 @@ Docker-based deployment solution for TrackHub application stack.
 - **Centralized Configuration**: Template-based configuration management for all services
 - **Centralized Database Logging**: Shared PostgreSQL log sink configuration for APIs and background services
 - **Database Backup & Restore**: Automated backup scripts with versioned restore capabilities
-- **Health Monitoring**: Built-in health checks for all services
+- **Health Monitoring**: Built-in health checks for all services, plus a **public status page** at
+  `/status` that works without signing in — and platform-wide maintenance announcements
+  publishable by a SuperAdministrator
 - **Version Management**: Tag, list, and rollback deployments with ease
 - **Nginx Reverse Proxy**: Pre-configured routing for all microservices
 - **Document Storage**: Local volume by default, or S3 / Azure Blob for the Manager's
@@ -196,10 +198,10 @@ All services share similar `appsettings.json` configurations. Use the centralize
 
 | Service | Path | Port | Description |
 |---------|------|------|-------------|
-| Frontend | `/` | - | React.js web application |
+| Frontend | `/` | - | React.js web application (incl. the anonymous `/status` page) |
 | Authority | `/Identity/` | 8080 | OpenIddict identity server |
 | Security | `/Security/` | 8080 | User & permissions (GraphQL) |
-| Manager | `/Manager/` | 8080 | Asset management (GraphQL) |
+| Manager | `/Manager/` | 8080 | Asset management (GraphQL) + one **anonymous** REST endpoint: `api/PlatformStatus/announcements` |
 | Router | `/Router/` | 8080 | Device routing (GraphQL) |
 | Geofencing | `/Geofence/` | 8080 | Geofence management (GraphQL) |
 | Reporting | `/Reporting/` | 8080 | Reports generation (REST) |

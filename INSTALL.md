@@ -779,16 +779,26 @@ Switching provider does **not** migrate existing documents — move the contents
 
 ### URL Paths
 
-| Path | Service |
-|------|---------|
-| `/` | Frontend (React) |
-| `/Identity/*` | Authority Server |
-| `/Security/*` | Security API |
-| `/Manager/*` | Manager API |
-| `/Router/*` | Router API |
-| `/Geofence/*` | Geofencing API |
-| `/Telemetry/*` | Telemetry API |
-| `/Reporting/*` | Reporting API |
+| Path | Service | Authentication |
+|------|---------|----------------|
+| `/` | Frontend (React) | Static files — the SPA itself is never authenticated |
+| `/status` | Frontend (React) | **Anonymous.** Platform status page — see below |
+| `/health` | nginx | Anonymous (static 200) |
+| `/health/{service}` | Per-service passthrough | Anonymous |
+| `/Identity/*` | Authority Server | Anonymous (it *is* the sign-in surface) |
+| `/Security/*` | Security API | Bearer token |
+| `/Manager/*` | Manager API | Bearer token, **except** `/Manager/api/PlatformStatus/announcements` |
+| `/Router/*` | Router API | Bearer token |
+| `/Geofence/*` | Geofencing API | Bearer token |
+| `/Telemetry/*` | Telemetry API | Bearer token |
+| `/Reporting/*` | Reporting API | Bearer token |
+
+**Deliberately anonymous surfaces.** `/status`, the `/health*` probes, and
+`GET /Manager/api/PlatformStatus/announcements` are unauthenticated **by design**: the status page
+must answer "is the platform down?" for a user who cannot sign in, which rules out anything behind
+the login. The announcements endpoint is rate-limited per client IP, output-cached for 60 s, and
+returns only currently-visible announcements — it never exposes drafts, scheduling metadata, or any
+account data. Do not put these behind auth or an IP allowlist without removing the status page too.
 
 ---
 
@@ -1268,6 +1278,18 @@ starting the new images (Security → `TrackHubSecurity`; Manager and Geofencing
 standard migration process (e.g. `dotnet ef database update` per service, or an EF
 migration bundle). This step is required on every upgrade that adds migrations.
 
+**Migrations added by recent releases** (apply in order; each is additive and safe to re-run):
+
+| Migration | Service | Adds | If not applied |
+|-----------|---------|------|----------------|
+| `AddPlatformAnnouncements` | Manager | `app.platform_announcements` (platform status page announcements) | `GET /Manager/api/PlatformStatus/announcements` returns 500 and the announcement banner never appears. The status page itself still works — tiles are probed directly and do not touch this table. |
+
+> **This matters on the code-only paths.** `update-service.sh` and the zero-downtime
+> procedure do **not** run migrations. Deploying a Manager image that expects
+> `app.platform_announcements` onto a database without it will 500 on the announcements
+> endpoint until you run the migration. Verify afterwards with
+> `./scripts/health-check.sh <domain>`, which now probes that endpoint.
+
 ### 6. Rebuild and deploy
 
 ```bash
@@ -1331,6 +1353,16 @@ cd /opt/trackhub/TrackHub.Deployment
 
 ### Zero-Downtime Updates
 
+> **Announce the window first.** Publish a maintenance announcement from the portal
+> (**Platform Status → Manage announcements**, SuperAdministrator only) *before* you start.
+> Announcements are stored by the Manager service and served by it, so once Manager restarts the
+> banner cannot be loaded — a notice scheduled in advance is what users actually see during the
+> window. Give it a `Starts at` / `Ends at` covering the window and it retires itself.
+>
+> Note the same dependency during the update: while Manager is restarting, the banner disappears
+> from `/status` and from the portal shell. That is expected degradation, not a fault — the service
+> tiles keep working because they are probed directly.
+
 For production environments, update services one at a time:
 
 ```bash
@@ -1372,11 +1404,23 @@ For production environments, update services one at a time:
 # Check all services
 ./scripts/health-check.sh your-domain.com
 
-# HTTP endpoints
+# HTTP endpoints (nginx static probe + one anonymous passthrough per service)
 curl -k https://your-domain.com/health
 curl -k https://your-domain.com/health/authority
 curl -k https://your-domain.com/health/security
+curl -k https://your-domain.com/health/manager
+curl -k https://your-domain.com/health/router
+curl -k https://your-domain.com/health/geofencing
+curl -k https://your-domain.com/health/telemetry
+curl -k https://your-domain.com/health/reporting
 ```
+
+Manager, Telemetry, Security, Geofencing and AuthorityServer health checks include a database
+probe; Reporting and Router are liveness-only. The SyncWorker has no HTTP listener — its liveness is
+derived from the rows it writes, and it is surfaced on the platform status page rather than here.
+
+Non-technical users can check the same signals without a shell — and without signing in — at
+`https://your-domain.com/status`.
 
 ### Backup Configuration
 

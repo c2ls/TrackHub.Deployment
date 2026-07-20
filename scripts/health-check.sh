@@ -207,6 +207,15 @@ check_service_endpoint "geofencing" "Geofence GraphQL"  "$PROTOCOL://$DOMAIN/Geo
 check_service_endpoint "telemetry"  "Telemetry GraphQL" "$PROTOCOL://$DOMAIN/Telemetry/graphql/"
 
 echo ""
+echo "Public Surfaces (no authentication):"
+echo "------------------------------------"
+# The status page itself is static SPA content, so this only proves nginx serves the route.
+check_service_endpoint "frontend" "Status page"   "$PROTOCOL://$DOMAIN/status"
+# The announcements feed must answer anonymously. A 401/403 here means the endpoint lost its
+# AllowAnonymous; a 500 usually means the platform_announcements migration was never applied.
+check_service_endpoint "manager"  "Announcements" "$PROTOCOL://$DOMAIN/Manager/api/PlatformStatus/announcements"
+
+echo ""
 if [ "$FAILURES" -eq 0 ]; then
     echo -e "${GREEN}✓ Health check complete: all checks passed.${NC}"
     exit 0

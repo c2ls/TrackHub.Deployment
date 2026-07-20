@@ -300,9 +300,8 @@ services:
           memory: 512M
         reservations:
           memory: 256M
-    # Router exposes no /health endpoint; probe the OpenAPI (scalar) endpoint instead.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/scalar/v1"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3

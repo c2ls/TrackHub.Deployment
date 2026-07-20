@@ -247,6 +247,11 @@ docker compose ps
 
 Open `https://your-domain.com` in your browser. You should see the TrackHub login page.
 
+Then open `https://your-domain.com/status` — the platform status page. It loads **without signing
+in** and shows a tile per service, so it is the fastest single-URL confirmation that the whole stack
+is reachable. Every tile should read *Working*; a grey *Unknown* tile usually means that service's
+`REACT_APP_*` endpoint is missing from `.env`.
+
 ---
 
 ## Updating TrackHub
@@ -313,6 +318,7 @@ Valid service names: `frontend`, `authority`, `security`, `manager`, `router`,
 
 | Action | Command |
 |--------|---------|
+| Check the platform status | Open `https://your-domain.com/status` (no sign-in needed) |
 | View all logs | `./scripts/logs.sh` |
 | View one service log | `./scripts/logs.sh manager` |
 | Restart a service | `docker compose restart manager` |
