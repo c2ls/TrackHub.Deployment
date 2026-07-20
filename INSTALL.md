@@ -229,9 +229,10 @@ dotnet tool install --global dotnet-ef
 # The services depend on TrackHubCommon.* packages that are NOT on nuget.org. Pack them
 # from source into a local feed, then register it — without this source, restore (and
 # therefore `dotnet ef`) fails.
-for p in Domain Application Infrastructure Web; do
-  dotnet pack TrackHubCommon/src/Common.$p/Common.$p.csproj -c Release -o /opt/trackhub/local-nuget
-done
+# `dotnet build` (not `dotnet pack`) — GeneratePackageOnBuild emits the .nupkg files
+dotnet build TrackHubCommon/src/Common.Web/Common.Web.csproj -c Release
+mkdir -p /opt/trackhub/local-nuget
+find TrackHubCommon/src -name 'TrackHubCommon.*.nupkg' -exec cp {} /opt/trackhub/local-nuget/ \;
 dotnet nuget add source /opt/trackhub/local-nuget -n trackhub-local
 ```
 
@@ -848,7 +849,7 @@ runs, or manual cleanup:
 
 ### TrackHubCommon Packages
 
-TrackHub services depend on the **TrackHubCommon** shared library, which is not published to nuget.org. Each Dockerfile packs TrackHubCommon from source in a dedicated first build stage (`FROM ... AS common`) that runs `dotnet pack` on the four `Common.*` projects into `/local-nuget`. That output is copied to `/nuget-packages/` alongside `nuget-packages/nuget.config`, which configures both the local source and nuget.org for the restore step.
+TrackHub services depend on the **TrackHubCommon** shared library, which is not published to nuget.org. Each Dockerfile packs TrackHubCommon from source in a dedicated first build stage (`FROM ... AS common`) that runs `dotnet build` on `Common.Web` (which builds all four `Common.*` projects; `GeneratePackageOnBuild` emits their `.nupkg` files) and collects the packages into `/local-nuget`. That output is copied to `/nuget-packages/` alongside `nuget-packages/nuget.config`, which configures both the local source and nuget.org for the restore step.
 
 Because packages are built from the `TrackHubCommon/` source inside the build context on every image build, updating TrackHubCommon requires **no manual repack** — just rebuild the affected services. Bump `<Version>` in `TrackHubCommon/Directory.Build.props` and the matching `TrackHubCommon.*` `PackageVersion` entries in each service's `Directory.Packages.props` in lockstep when you introduce a breaking change.
 
@@ -969,9 +970,10 @@ silently:
 dotnet tool install --global dotnet-ef
 
 cd /opt/trackhub
-for p in Domain Application Infrastructure Web; do
-  dotnet pack TrackHubCommon/src/Common.$p/Common.$p.csproj -c Release -o /opt/trackhub/local-nuget
-done
+# `dotnet build` (not `dotnet pack`) — GeneratePackageOnBuild emits the .nupkg files
+dotnet build TrackHubCommon/src/Common.Web/Common.Web.csproj -c Release
+mkdir -p /opt/trackhub/local-nuget
+find TrackHubCommon/src -name 'TrackHubCommon.*.nupkg' -exec cp {} /opt/trackhub/local-nuget/ \;
 dotnet nuget add source /opt/trackhub/local-nuget -n trackhub-local
 
 export SECURITY_CONN="server=db.example.com;port=5432;database=TrackHubSecurity;user id=trackhub;password=YourStrongPassword"

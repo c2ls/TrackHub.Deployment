@@ -5,10 +5,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS common
 WORKDIR /common
 COPY TrackHubCommon/ ./
-RUN dotnet pack src/Common.Domain/Common.Domain.csproj -c Release -o /local-nuget \
- && dotnet pack src/Common.Application/Common.Application.csproj -c Release -o /local-nuget \
- && dotnet pack src/Common.Infrastructure/Common.Infrastructure.csproj -c Release -o /local-nuget \
- && dotnet pack src/Common.Web/Common.Web.csproj -c Release -o /local-nuget
+# GeneratePackageOnBuild=true: `dotnet build` emits the .nupkg for each project
+# (`dotnet pack` hits NU5026 with this setting); building Web builds all four.
+RUN dotnet build src/Common.Web/Common.Web.csproj -c Release \
+ && mkdir -p /local-nuget \
+ && find /common/src -name 'TrackHubCommon.*.nupkg' -exec cp {} /local-nuget/ \;
 
 # Stage 1: Build
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build

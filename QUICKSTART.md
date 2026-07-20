@@ -153,9 +153,10 @@ them from source, then register the feed. Without this, `dotnet ef` fails to res
 
 ```bash
 cd /opt/trackhub
-for p in Domain Application Infrastructure Web; do
-  dotnet pack TrackHubCommon/src/Common.$p/Common.$p.csproj -c Release -o /opt/trackhub/local-nuget
-done
+# `dotnet build` (not `dotnet pack`) — GeneratePackageOnBuild emits the .nupkg files
+dotnet build TrackHubCommon/src/Common.Web/Common.Web.csproj -c Release
+mkdir -p /opt/trackhub/local-nuget
+find TrackHubCommon/src -name 'TrackHubCommon.*.nupkg' -exec cp {} /opt/trackhub/local-nuget/ \;
 dotnet nuget add source /opt/trackhub/local-nuget -n trackhub-local
 ```
 
