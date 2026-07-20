@@ -1,6 +1,15 @@
 # TrackHub Telemetry API (GraphQL)
 # Multi-stage build for .NET 10
 
+# Stage 0: Pack shared TrackHubCommon NuGet packages
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS common
+WORKDIR /common
+COPY TrackHubCommon/ ./
+RUN dotnet pack src/Common.Domain/Common.Domain.csproj -c Release -o /local-nuget \
+ && dotnet pack src/Common.Application/Common.Application.csproj -c Release -o /local-nuget \
+ && dotnet pack src/Common.Infrastructure/Common.Infrastructure.csproj -c Release -o /local-nuget \
+ && dotnet pack src/Common.Web/Common.Web.csproj -c Release -o /local-nuget
+
 # Stage 1: Build
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
@@ -15,8 +24,9 @@ COPY TrackHub.Telemetry/src/Domain/Domain.csproj src/Domain/
 COPY TrackHub.Telemetry/src/Infrastructure/TelemetryDB/TelemetryDB.csproj src/Infrastructure/TelemetryDB/
 COPY TrackHub.Telemetry/src/Web/Web.csproj src/Web/
 
-# Copy local NuGet packages
-COPY TrackHub.Deployment/nuget-packages/ /nuget-packages/
+# Copy freshly packed TrackHubCommon packages + NuGet feed config
+COPY --from=common /local-nuget/ /nuget-packages/
+COPY TrackHub.Deployment/nuget-packages/nuget.config /nuget-packages/nuget.config
 
 # Restore dependencies
 RUN dotnet restore src/Web/Web.csproj --configfile /nuget-packages/nuget.config

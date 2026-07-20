@@ -145,13 +145,17 @@ Requires the .NET SDK and `dotnet-ef` on the machine that can reach PostgreSQL:
 dotnet tool install --global dotnet-ef
 ```
 
-**Register the local NuGet feed first.** The services depend on `TrackHubCommon.*`
-packages that are **not on nuget.org** — they ship as `.nupkg` files inside the deployment
-repo. Without this, `dotnet ef` fails to restore:
+**Pack TrackHubCommon into a local feed first.** The services depend on `TrackHubCommon.*`
+packages that are **not on nuget.org** and are no longer committed as `.nupkg` files — pack
+them from source, then register the feed. Without this, `dotnet ef` fails to restore
+(Docker image builds pack them automatically in a `common` stage):
 
 ```bash
-dotnet nuget add source /opt/trackhub/TrackHub.Deployment/nuget-packages \
-  -n trackhub-local
+cd /opt/trackhub
+for p in Domain Application Infrastructure Web; do
+  dotnet pack TrackHubCommon/src/Common.$p/Common.$p.csproj -c Release -o /opt/trackhub/local-nuget
+done
+dotnet nuget add source /opt/trackhub/local-nuget -n trackhub-local
 ```
 
 Now apply the migrations:

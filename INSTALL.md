@@ -128,9 +128,11 @@ outside PostgreSQL: back it up separately.
 
 > **Note:** Docker builds include the .NET SDK automatically, but you still need the SDK
 > (plus `dotnet-ef`) on a host that can reach PostgreSQL, because **EF migrations are applied
-> outside Docker** — see [Applying Migrations](#applying-migrations). That host must also
-> register the local NuGet feed shipped in `TrackHub.Deployment/nuget-packages`, since the
-> `TrackHubCommon.*` packages are not published to nuget.org.
+> outside Docker** — see [Applying Migrations](#applying-migrations). Because the
+> `TrackHubCommon.*` packages are not published to nuget.org, that host must pack them from
+> the `TrackHubCommon/` source into a local feed and register it (the commands are in
+> [Applying Migrations](#applying-migrations)). Docker image builds handle this automatically —
+> each Dockerfile packs TrackHubCommon in a dedicated `common` stage.
 
 ### External Requirements
 
@@ -223,10 +225,13 @@ schema is created by the Manager migrations).
 # .NET SDK + EF tooling
 dotnet tool install --global dotnet-ef
 
-# The services depend on TrackHubCommon.* packages that are NOT on nuget.org — they ship
-# as .nupkg files in the deployment repo. Without this source, restore (and therefore
-# `dotnet ef`) fails.
-dotnet nuget add source /opt/trackhub/TrackHub.Deployment/nuget-packages -n trackhub-local
+# The services depend on TrackHubCommon.* packages that are NOT on nuget.org and are no
+# longer committed as .nupkg files. Pack them from source into a local feed, then register
+# it — without this source, restore (and therefore `dotnet ef`) fails.
+for p in Domain Application Infrastructure Web; do
+  dotnet pack TrackHubCommon/src/Common.$p/Common.$p.csproj -c Release -o /opt/trackhub/local-nuget
+done
+dotnet nuget add source /opt/trackhub/local-nuget -n trackhub-local
 ```
 
 Set the connection strings explicitly — **do not rely on the services' `appsettings.json`,
@@ -809,7 +814,8 @@ account data. Do not put these behind auth or an IP allowlist without removing t
 All services use the parent directory (`/opt/trackhub/`) as the Docker build context. This allows each Dockerfile to access:
 
 1. **Its own source repository** (e.g., `TrackHub.Manager/`)
-2. **Local NuGet packages** (`TrackHub.Deployment/nuget-packages/`)
+2. **The TrackHubCommon source** (`TrackHubCommon/`), packed into NuGet packages by each
+   Dockerfile's `common` stage, plus the NuGet feed config (`TrackHub.Deployment/nuget-packages/nuget.config`)
 3. **Shared scripts** (`TrackHub.Deployment/scripts/`)
 
 Each Dockerfile has a matching `docker/<Dockerfile>.dockerignore` file that
@@ -839,11 +845,11 @@ runs, or manual cleanup:
 - **`--force-recreate`** guarantees containers are replaced by the freshly built
   images on every deploy.
 
-### Local NuGet Packages
+### TrackHubCommon Packages
 
-TrackHub services depend on the **TrackHubCommon** shared library, distributed as local NuGet packages (not published to nuget.org). These packages are stored in `nuget-packages/` and mounted into Docker builds via a `nuget.config` that configures both the local source and nuget.org.
+TrackHub services depend on the **TrackHubCommon** shared library, which is not published to nuget.org. Rather than committing prebuilt `.nupkg` files, each Dockerfile packs TrackHubCommon from source in a dedicated first build stage (`FROM ... AS common`) that runs `dotnet pack` on the four `Common.*` projects into `/local-nuget`. That output is copied to `/nuget-packages/` alongside `nuget-packages/nuget.config`, which configures both the local source and nuget.org for the restore step.
 
-If you update TrackHubCommon, rebuild the packages and copy the new `.nupkg` files to `nuget-packages/` before rebuilding services.
+Because packages are built from the `TrackHubCommon/` source inside the build context on every image build, updating TrackHubCommon requires **no manual repack** — just rebuild the affected services. Bump `<Version>` in `TrackHubCommon/Directory.Build.props` and the matching `TrackHubCommon.*` `PackageVersion` entries in each service's `Directory.Packages.props` in lockstep when you introduce a breaking change.
 
 ### Reverse Proxy and HTTPS
 
@@ -953,15 +959,19 @@ the Manager migrations.
 | Manager | `TrackHub.Manager/src/Infrastructure/ManagerDB` | `TrackHub.Manager/src/Web` | `TrackHub` |
 | Geofencing | `TrackHub.Geofencing/src/Infrastructure/ManagerDB` | `TrackHub.Geofencing/src/Web` | `TrackHub` |
 
-Register the local NuGet feed once (the `TrackHubCommon.*` packages are not on nuget.org),
-then set the connection strings explicitly — the services' `appsettings.json` holds a
-**localhost dev** connection string that EF would otherwise use silently:
+Pack `TrackHubCommon.*` into a local feed once (they are not on nuget.org and are not
+committed as `.nupkg` files), then set the connection strings explicitly — the services'
+`appsettings.json` holds a **localhost dev** connection string that EF would otherwise use
+silently:
 
 ```bash
 dotnet tool install --global dotnet-ef
-dotnet nuget add source /opt/trackhub/TrackHub.Deployment/nuget-packages -n trackhub-local
 
 cd /opt/trackhub
+for p in Domain Application Infrastructure Web; do
+  dotnet pack TrackHubCommon/src/Common.$p/Common.$p.csproj -c Release -o /opt/trackhub/local-nuget
+done
+dotnet nuget add source /opt/trackhub/local-nuget -n trackhub-local
 
 export SECURITY_CONN="server=db.example.com;port=5432;database=TrackHubSecurity;user id=trackhub;password=YourStrongPassword"
 export MANAGER_CONN="server=db.example.com;port=5432;database=TrackHub;user id=trackhub;password=YourStrongPassword"
@@ -1599,9 +1609,14 @@ If you see `error:invalid_request` with `This server only accepts HTTPS requests
 
 If `dotnet restore` fails with missing TrackHubCommon packages:
 
-1. Ensure `nuget-packages/` directory contains all `.nupkg` files
-2. Verify `nuget-packages/nuget.config` exists with local source configured
-3. All Dockerfiles should use `--configfile /nuget-packages/nuget.config` on restore
+1. Confirm the `common` build stage packed successfully — the build log should show four
+   `Successfully created package '/local-nuget/TrackHubCommon.*.nupkg'` lines
+2. Verify the packed `<Version>` in `TrackHubCommon/Directory.Build.props` matches the
+   `TrackHubCommon.*` `PackageVersion` entries in the service's `Directory.Packages.props`
+3. Verify `nuget-packages/nuget.config` exists with the `local` (`/nuget-packages`) source configured
+4. All Dockerfiles should use `--configfile /nuget-packages/nuget.config` on restore
+5. Ensure stale host-built packages under `TrackHubCommon/NugetPackages/` are not leaking into
+   the build context (they are excluded by the `.dockerignore` files)
 
 #### 502 Bad Gateway
 

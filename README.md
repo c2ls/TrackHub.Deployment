@@ -61,9 +61,8 @@ TrackHub.Deployment/
 │   ├── nginx.conf               # Full stack nginx config
 │   ├── nginx.frontend.conf      # Frontend-only nginx config
 │   └── nginx.backend.conf       # Backend-only nginx config
-├── nuget-packages/              # Local NuGet packages (TrackHubCommon)
-│   ├── nuget.config             # NuGet source configuration
-│   └── *.nupkg                  # Shared library packages
+├── nuget-packages/              # NuGet feed config for TrackHubCommon
+│   └── nuget.config             # NuGet source configuration (packages packed in-container)
 └── scripts/
     ├── deploy.sh                # Main deployment script
     ├── update-service.sh        # Update individual services
@@ -238,9 +237,10 @@ The `db-init` container **seeds data only** — it does not create or migrate th
 so migrations must be applied (new installations **and** updates) with your EF migration
 process, e.g. `dotnet ef database update`, for every stateful service.
 
-> The migration host needs the .NET SDK, `dotnet-ef`, **and** the local NuGet feed
-> (`dotnet nuget add source /opt/trackhub/TrackHub.Deployment/nuget-packages -n trackhub-local`) —
-> the `TrackHubCommon.*` packages are not published to nuget.org, so restore fails without it.
+> The migration host needs the .NET SDK and `dotnet-ef`. The `TrackHubCommon.*` packages are
+> not on nuget.org and are no longer committed as `.nupkg` files, so pack them from the
+> `TrackHubCommon/` source into a local feed and register it before running `dotnet ef`
+> (Docker image builds pack them automatically in a `common` stage).
 > Full commands: [QUICKSTART.md Step 5](QUICKSTART.md) / [INSTALL.md → Applying Migrations](INSTALL.md#applying-migrations).
 
 | Service | Database | Schema |

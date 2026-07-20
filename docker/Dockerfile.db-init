@@ -1,6 +1,15 @@
 # Database Initialization Container
 # Runs ClientSeeder and DBInitializers once during initial deployment
 
+# Stage 0: Pack shared TrackHubCommon NuGet packages
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS common
+WORKDIR /common
+COPY TrackHubCommon/ ./
+RUN dotnet pack src/Common.Domain/Common.Domain.csproj -c Release -o /local-nuget \
+ && dotnet pack src/Common.Application/Common.Application.csproj -c Release -o /local-nuget \
+ && dotnet pack src/Common.Infrastructure/Common.Infrastructure.csproj -c Release -o /local-nuget \
+ && dotnet pack src/Common.Web/Common.Web.csproj -c Release -o /local-nuget
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
@@ -25,8 +34,9 @@ COPY TrackHub.Manager/Directory.Packages.props ./manager/
 COPY TrackHub.Manager/global.json ./manager/
 COPY TrackHub.Manager/src/ ./manager/src/
 
-# Copy local NuGet packages
-COPY TrackHub.Deployment/nuget-packages/ /nuget-packages/
+# Copy freshly packed TrackHubCommon packages + NuGet feed config
+COPY --from=common /local-nuget/ /nuget-packages/
+COPY TrackHub.Deployment/nuget-packages/nuget.config /nuget-packages/nuget.config
 
 # Build all initializers
 RUN dotnet restore ./authority/src/ClientSeeder/ClientSeeder.csproj --configfile /nuget-packages/nuget.config && \
