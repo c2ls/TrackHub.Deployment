@@ -13,6 +13,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Source repository settings (GITHUB_OWNER / GITHUB_REPO_SUFFIX / credentials)
+source "$SCRIPT_DIR/repo-config.sh"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -170,7 +173,11 @@ ensure_trackhubcommon() {
     workspace_dir="$(dirname "$PROJECT_DIR")"
     if [ ! -d "$workspace_dir/TrackHubCommon" ]; then
         print_info "TrackHubCommon repository not found — cloning into $workspace_dir..."
-        git clone https://github.com/shernandezp/TrackHubCommon.git "$workspace_dir/TrackHubCommon"
+        if ! repo_clone_or_update "TrackHubCommon" "$workspace_dir/TrackHubCommon"; then
+            print_error "Could not clone $(repo_url_clean TrackHubCommon)"
+            print_info "For private repositories set GITHUB_USER and GITHUB_PASSWORD in .env"
+            exit 1
+        fi
         print_success "TrackHubCommon cloned"
     fi
 }

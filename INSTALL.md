@@ -175,18 +175,39 @@ docker compose version
 mkdir -p /opt/trackhub
 cd /opt/trackhub
 
-# Clone all required repositories
+# Clone the deployment repository
 git clone https://github.com/shernandezp/TrackHub.Deployment.git
-git clone https://github.com/shernandezp/TrackHub.git
-git clone https://github.com/shernandezp/TrackHub.AuthorityServer.git
-git clone https://github.com/shernandezp/TrackHubSecurity.git
-git clone https://github.com/shernandezp/TrackHub.Manager.git
-git clone https://github.com/shernandezp/TrackHubRouter.git
-git clone https://github.com/shernandezp/TrackHub.Geofencing.git
-git clone https://github.com/shernandezp/TrackHub.Telemetry.git
-git clone https://github.com/shernandezp/TrackHub.Reporting.git
-git clone https://github.com/shernandezp/TrackHubCommon.git
+
+# Configure where the source repositories come from, then clone them all
+cd TrackHub.Deployment
+cp .env.example .env
+./scripts/clone-repos.sh
+cd ..
 ```
+
+`clone-repos.sh` reads these settings from `.env`:
+
+| Setting | Purpose | Default |
+|---|---|---|
+| `GITHUB_OWNER` | Account that owns the repositories | `shernandezp` |
+| `GITHUB_REPO_SUFFIX` | Appended to every repository name | *(empty)* |
+| `GITHUB_BRANCH` | Branch to check out | `master` |
+| `GITHUB_USER` / `GITHUB_PASSWORD` | Credentials, private repositories only | *(empty)* |
+
+For a private deployment, point it at your own copies:
+
+```bash
+GITHUB_OWNER=your-account
+GITHUB_REPO_SUFFIX=.Commercial
+GITHUB_USER=your-username
+GITHUB_PASSWORD=ghp_your_personal_access_token
+```
+
+> `GITHUB_PASSWORD` must be a **Personal Access Token**, not your account password —
+> GitHub no longer accepts passwords over HTTPS. Create one at
+> [github.com/settings/tokens](https://github.com/settings/tokens) with the `repo` scope.
+> The token is only ever passed to `git` on the command line; it is not written into
+> any repository's `.git/config`.
 
 > `TrackHubRouter` also provides the **SyncWorker** background service — it has no
 > separate repository.
