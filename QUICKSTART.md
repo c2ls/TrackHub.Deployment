@@ -39,16 +39,17 @@ sudo mkdir -p /opt/trackhub && sudo chown $USER:$USER /opt/trackhub
 cd /opt/trackhub
 
 git clone https://github.com/shernandezp/TrackHub.Deployment.git
-git clone https://github.com/shernandezp/TrackHub.git
-git clone https://github.com/shernandezp/TrackHub.AuthorityServer.git
-git clone https://github.com/shernandezp/TrackHubSecurity.git
-git clone https://github.com/shernandezp/TrackHub.Manager.git
-git clone https://github.com/shernandezp/TrackHubRouter.git
-git clone https://github.com/shernandezp/TrackHub.Geofencing.git
-git clone https://github.com/shernandezp/TrackHub.Telemetry.git
-git clone https://github.com/shernandezp/TrackHub.Reporting.git
-git clone https://github.com/shernandezp/TrackHubCommon.git
+
+cd TrackHub.Deployment
+cp .env.example .env
+./scripts/clone-repos.sh
+cd ..
 ```
+
+> Deploying from private repositories? Set `GITHUB_OWNER`, `GITHUB_REPO_SUFFIX`,
+> `GITHUB_USER` and `GITHUB_PASSWORD` in `.env` before running `clone-repos.sh`.
+> `GITHUB_PASSWORD` must be a Personal Access Token — GitHub does not accept account
+> passwords over HTTPS. See [INSTALL.md](INSTALL.md) for the full table.
 
 > The **SyncWorker** background service is built from the `TrackHubRouter` repo — there is
 > nothing extra to clone for it.
